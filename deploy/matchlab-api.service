@@ -1,0 +1,22 @@
+[Unit]
+Description=MatchLab API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=matchlab
+Group=matchlab
+WorkingDirectory=/opt/matchlab/backend
+EnvironmentFile=/opt/matchlab/backend/.env
+ExecStart=/opt/matchlab/backend/bin/matchlab-api
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target
