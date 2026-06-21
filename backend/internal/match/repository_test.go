@@ -58,12 +58,39 @@ func TestDetailScoresJSONBRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("value: %v", err)
 	}
+	encoded, ok := value.(string)
+	if !ok {
+		t.Fatalf("value type=%T want string", value)
+	}
+	if strings.Contains(encoded, "::jsonb") {
+		t.Fatalf("value=%q must not contain PostgreSQL cast", encoded)
+	}
+	if encoded != `{"interest":26,"skill":22,"type":20,"time":8,"goal":12}` {
+		t.Fatalf("value=%q", encoded)
+	}
 	var got DetailScores
 	if err := got.Scan(value); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got=%#v want=%#v", got, want)
+	}
+}
+
+func TestDetailScoresValueReturnsPlainEmptyJSON(t *testing.T) {
+	value, err := (DetailScores{}).Value()
+	if err != nil {
+		t.Fatalf("value: %v", err)
+	}
+	encoded, ok := value.(string)
+	if !ok {
+		t.Fatalf("value type=%T want string", value)
+	}
+	if encoded != "{}" {
+		t.Fatalf("value=%q want {}", encoded)
+	}
+	if strings.Contains(encoded, "::jsonb") {
+		t.Fatalf("value=%q must not contain PostgreSQL cast", encoded)
 	}
 }
 
@@ -76,9 +103,13 @@ func TestDetailScoresScanHandlesDriverShapes(t *testing.T) {
 	}{
 		{name: "nil", value: nil, want: DetailScores{}},
 		{name: "empty bytes", value: []byte{}, want: DetailScores{}},
+		{name: "empty json bytes", value: []byte(`{}`), want: DetailScores{}},
+		{name: "empty json string", value: `{}`, want: DetailScores{}},
 		{name: "json bytes", value: []byte(`{"interest":26,"skill":22,"type":20,"time":8,"goal":12}`), want: want},
 		{name: "json string", value: `{"interest":26,"skill":22,"type":20,"time":8,"goal":12}`, want: want},
 		{name: "double encoded json", value: `"{\"interest\":26,\"skill\":22,\"type\":20,\"time\":8,\"goal\":12}"`, want: want},
+		{name: "legacy quoted jsonb cast", value: `'{}'::jsonb`, want: DetailScores{}},
+		{name: "legacy jsonb cast", value: `{}::jsonb`, want: DetailScores{}},
 	}
 
 	for _, test := range tests {

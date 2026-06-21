@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,9 +24,15 @@ type DetailScores struct {
 }
 
 func (s DetailScores) Value() (driver.Value, error) {
+	if s == (DetailScores{}) {
+		return "{}", nil
+	}
 	encoded, err := json.Marshal(s)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal DetailScores: %w", err)
+	}
+	if len(encoded) == 0 || string(encoded) == "null" {
+		return "{}", nil
 	}
 	return string(encoded), nil
 }
@@ -52,6 +59,8 @@ func (s *DetailScores) Scan(value any) error {
 		return nil
 	}
 
+	data = cleanDetailScoresJSON(data)
+
 	var decoded DetailScores
 	if err := json.Unmarshal(data, &decoded); err == nil {
 		*s = decoded
@@ -67,6 +76,16 @@ func (s *DetailScores) Scan(value any) error {
 	}
 
 	return fmt.Errorf("scan DetailScores: invalid json: %s", string(data))
+}
+
+func cleanDetailScoresJSON(data []byte) []byte {
+	trimmed := strings.TrimSpace(string(data))
+	trimmed = strings.TrimSuffix(trimmed, "::jsonb")
+	trimmed = strings.TrimSpace(trimmed)
+	if len(trimmed) >= 2 && trimmed[0] == '\'' && trimmed[len(trimmed)-1] == '\'' {
+		trimmed = trimmed[1 : len(trimmed)-1]
+	}
+	return []byte(trimmed)
 }
 
 type Explanation struct {
