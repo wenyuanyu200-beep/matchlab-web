@@ -299,3 +299,201 @@ curl -i "$BASE/api/activities/$ACTIVITY_ID/applications" \
 curl -i -X POST "$BASE/api/applications/$APPLICATION_ID/approve" \
   -H "Authorization: Bearer $TOKEN_A"
 ```
+
+## 问卷画像与活动推荐
+
+以下接口均需要 Bearer JWT。推荐模块使用可解释的规则评分，不调用大模型；业务范围保持为校园活动与项目协作。
+
+### POST /api/questionnaires
+
+提交问卷后会创建一条新 questionnaire，并按当前 JWT 用户的 `user_id` 创建或更新唯一 profile。`answers` 使用 JSONB 保存。
+
+```bash
+curl -i -X POST "$BASE/api/questionnaires" \
+  -H "Authorization: Bearer $TOKEN_B" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "mode": "activity",
+    "answers": {
+      "interests": ["电赛", "STM32", "硬件"],
+      "skills": ["嵌入式", "焊接", "控制"],
+      "available_time": "周末下午",
+      "activity_types": ["competition", "project"],
+      "goal": "找队友一起参加比赛",
+      "communication_style": "稳定沟通"
+    }
+  }'
+```
+
+成功返回 `201 Created`：
+
+```json
+{
+  "data": {
+    "questionnaire": {
+      "id": "...",
+      "user_id": "...",
+      "mode": "activity",
+      "version": 1,
+      "answers": {},
+      "status": "completed"
+    },
+    "profile": {
+      "user_id": "...",
+      "profile_type": "activity",
+      "tags": ["电赛", "STM32", "硬件", "嵌入式", "焊接", "控制", "competition", "project"],
+      "scores": {
+        "interest_score": 80,
+        "skill_score": 75,
+        "time_score": 70,
+        "goal_score": 80,
+        "communication_score": 75
+      },
+      "summary": "该用户偏向竞赛组队和项目协作，关注电赛、STM32、硬件，具备嵌入式、焊接相关兴趣，适合参与校园活动与项目协作。"
+    }
+  }
+}
+```
+
+### GET /api/me/profile
+
+```bash
+curl -i "$BASE/api/me/profile" \
+  -H "Authorization: Bearer $TOKEN_B"
+```
+
+未生成画像时返回 `404 profile_not_found`。
+
+### POST /api/match/recommend
+
+目前只支持 `target_type=activity`。`limit` 省略时默认为 10，允许范围为 1–50。候选活动必须为 `recruiting`，并自动排除当前用户自己创建的活动。
+
+```bash
+curl -i -X POST "$BASE/api/match/recommend" \
+  -H "Authorization: Bearer $TOKEN_B" \
+  -H 'Content-Type: application/json' \
+  -d '{"target_type":"activity","limit":10}'
+```
+
+每条结果包含活动、总分、五项明细和自然语言理由：
+
+```json
+{
+  "activity": {
+    "id": "...",
+    "title": "智能硬件比赛组队",
+    "type": "competition"
+  },
+  "score": 88,
+  "detail_scores": {
+    "interest": 26,
+    "skill": 22,
+    "type": 20,
+    "time": 8,
+    "goal": 12
+  },
+  "reason": "推荐原因：你的兴趣标签与该活动的‘电赛、STM32、硬件’高度重合，同时你的技能倾向与‘嵌入式、焊接’相符，适合参与该类校园竞赛或项目协作。"
+}
+```
+
+尚未提交问卷时返回 `400 profile_required`。重复请求会按 `(user_id, activity_id, algorithm_version)` upsert，不会为同一算法版本创建重复记录。
+
+### GET /api/me/matches
+
+返回当前用户每个活动的最新已保存推荐结果，不保留每次推荐运行的快照。
+
+```bash
+curl -i "$BASE/api/me/matches" \
+  -H "Authorization: Bearer $TOKEN_B"
+```
+
+## 用户 B 完整推荐测试
+
+以下命令假设数据库中已有其他用户创建的 `recruiting` 活动。将 `BASE` 改为本地或公网地址。
+
+```bash
+BASE=http://127.0.0.1:8080
+
+TOKEN_B=$(curl -s -X POST "$BASE/api/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"applicant_b@example.com","password":"12345678"}' | jq -r '.data.token')
+
+USER_B_ID=$(curl -s "$BASE/api/me" \
+  -H "Authorization: Bearer $TOKEN_B" | jq -r '.data.user.id')
+
+curl -s -X POST "$BASE/api/questionnaires" \
+  -H "Authorization: Bearer $TOKEN_B" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "mode":"activity",
+    "answers":{
+      "interests":["电赛","STM32","硬件"],
+      "skills":["嵌入式","焊接","控制"],
+      "available_time":"周末下午",
+      "activity_types":["competition","project"],
+      "goal":"找队友一起参加比赛",
+      "communication_style":"稳定沟通"
+    }
+  }' | jq '.data | {questionnaire, profile}'
+
+curl -s "$BASE/api/me/profile" \
+  -H "Authorization: Bearer $TOKEN_B" | jq '.data.profile'
+
+curl -s -X POST "$BASE/api/match/recommend" \
+  -H "Authorization: Bearer $TOKEN_B" \
+  -H 'Content-Type: application/json' \
+  -d '{"target_type":"activity","limit":10}' \
+  | jq '.data.recommendations[] | {activity: .activity.title, score, detail_scores, reason}'
+
+curl -s "$BASE/api/me/matches" \
+  -H "Authorization: Bearer $TOKEN_B" \
+  | jq '.data.matches[] | {activity: .activity.title, score, detail_scores, reason, updated_at}'
+```
+
+在服务器 PostgreSQL 中检查持久化结果：
+
+```sql
+SELECT user_id,
+       activity_id,
+       algorithm_version,
+       score,
+       explanation->'detail_scores' AS detail_scores,
+       explanation->>'reason' AS reason,
+       updated_at
+FROM matches
+WHERE user_id = '<USER_B_ID>'
+ORDER BY score DESC, updated_at DESC;
+```
+
+再次调用推荐接口后，以下查询中每组记录数仍应为 1，且 `updated_at` 会刷新：
+
+```sql
+SELECT user_id, activity_id, algorithm_version, COUNT(*)
+FROM matches
+WHERE user_id = '<USER_B_ID>'
+GROUP BY user_id, activity_id, algorithm_version
+ORDER BY activity_id;
+```
+
+## KM 最大权匹配测试
+
+KM 和按行 greedy 对比实现位于 `backend/internal/algorithm`。运行：
+
+```bash
+cd backend
+go test ./internal/algorithm -run TestKMOutperformsRowGreedy -v
+```
+
+测试矩阵为：
+
+```text
+A1: 9, 8, 1
+A2: 8, 1, 1
+A3: 1, 8, 8
+```
+
+期望结果：KM 总分 `24`，greedy 总分 `18`。
+
+## 数据库增量升级
+
+本次必须在发布新二进制前执行更新后的 `database/schema.sql`。脚本使用 `IF NOT EXISTS` 和兼容性回填，可重复执行；不需要删除数据库，也不需要重新导入 users、activities 或 applications 数据。
