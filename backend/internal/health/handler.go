@@ -11,8 +11,8 @@ import (
 // not check PostgreSQL so load balancers can distinguish process health from
 // dependency readiness.
 func Handler(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{
 		"ok":      true,
 		"message": "MatchLab API running",
-	})
+	}})
 }

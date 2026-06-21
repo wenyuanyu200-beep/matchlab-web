@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"time"
 
@@ -40,14 +41,32 @@ func (r *GormRepository) LoadSignals(ctx context.Context, userID uuid.UUID) (Use
 		return UserSignals{}, ErrUnavailable
 	}
 	var profile questionnaire.Profile
-	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Take(&profile).Error; err != nil {
+	profileResult := r.db.WithContext(ctx).Where("user_id = ?", userID).Take(&profile)
+	slog.Info("match_recommend_db_query",
+		"stage", "database",
+		"query", "load_profile",
+		"user_id", userID.String(),
+		"activity_id", "",
+		"rows_affected", profileResult.RowsAffected,
+		"found", profileResult.Error == nil,
+	)
+	if err := profileResult.Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return UserSignals{}, ErrProfileRequired
 		}
 		return UserSignals{}, fmt.Errorf("load profile: %w", err)
 	}
 	var form questionnaire.Questionnaire
-	if err := r.db.WithContext(ctx).Where("user_id = ? AND status = ?", userID, "completed").Order("version DESC, created_at DESC").Take(&form).Error; err != nil {
+	formResult := r.db.WithContext(ctx).Where("user_id = ? AND status = ?", userID, "completed").Order("version DESC, created_at DESC").Take(&form)
+	slog.Info("match_recommend_db_query",
+		"stage", "database",
+		"query", "load_questionnaire",
+		"user_id", userID.String(),
+		"activity_id", "",
+		"rows_affected", formResult.RowsAffected,
+		"found", formResult.Error == nil,
+	)
+	if err := formResult.Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return UserSignals{}, ErrProfileRequired
 		}
@@ -61,10 +80,19 @@ func (r *GormRepository) ListCandidates(ctx context.Context, userID uuid.UUID) (
 		return nil, ErrUnavailable
 	}
 	var candidates []activity.Activity
-	if err := r.db.WithContext(ctx).
+	result := r.db.WithContext(ctx).
 		Where("status = ? AND creator_id <> ?", activity.StatusRecruiting, userID).
 		Order("created_at DESC").
-		Find(&candidates).Error; err != nil {
+		Find(&candidates)
+	slog.Info("match_recommend_db_query",
+		"stage", "database",
+		"query", "list_candidates",
+		"user_id", userID.String(),
+		"activity_id", "",
+		"rows_affected", result.RowsAffected,
+		"found", result.Error == nil,
+	)
+	if err := result.Error; err != nil {
 		return nil, fmt.Errorf("list recommendation candidates: %w", err)
 	}
 	return candidates, nil
@@ -81,12 +109,23 @@ func (r *GormRepository) UpsertMatches(ctx context.Context, userID, questionnair
 		now := time.Now().UTC()
 		for _, recommendation := range recommendations {
 			record := newRecord(userID, questionnaireID, recommendation, now)
-			if err := tx.Clauses(clause.OnConflict{
+			result := tx.Clauses(clause.OnConflict{
 				Columns: []clause.Column{{Name: "user_id"}, {Name: "activity_id"}, {Name: "algorithm_version"}},
 				DoUpdates: clause.AssignmentColumns([]string{
 					"target_id", "target_type", "questionnaire_id", "algorithm", "score", "detail_scores", "reason", "status", "updated_at",
 				}),
-			}).Create(&record).Error; err != nil {
+			}).Create(&record)
+			slog.Info("match_recommend_db_query",
+				"stage", "database",
+				"query", "upsert_match",
+				"user_id", userID.String(),
+				"activity_id", recommendation.Activity.ID.String(),
+				"rows_affected", result.RowsAffected,
+				"score", recommendation.Score,
+				"algorithm_version", AlgorithmVersion,
+				"saved", result.Error == nil,
+			)
+			if err := result.Error; err != nil {
 				return fmt.Errorf("upsert match for activity %s: %w", recommendation.Activity.ID, err)
 			}
 		}

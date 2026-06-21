@@ -1,0 +1,24 @@
+[Unit]
+Description=MatchLab Next.js frontend
+After=network-online.target matchlab-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=matchlab
+Group=matchlab
+WorkingDirectory=/opt/matchlab/frontend
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/matchlab/frontend/.next/cache
+
+[Install]
+WantedBy=multi-user.target

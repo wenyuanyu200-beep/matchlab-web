@@ -48,7 +48,7 @@ PGPASSWORD='替换为高强度密码' psql \
 
 ## 3. 自动安装服务
 
-部署脚本会构建 Linux amd64 二进制、创建 `matchlab` 系统用户、安装 systemd/Nginx 配置并启动服务：
+部署脚本会先以 `ON_ERROR_STOP=1` 重复安全地应用 `database/schema.sql`，再构建 Linux amd64 二进制、创建 `matchlab` 系统用户并安装 systemd/Nginx 配置。这样可避免新二进制连接旧 matches 表导致推荐接口 500：
 
 ```bash
 sudo sh deploy/deploy.sh
@@ -63,6 +63,12 @@ sudo chmod 600 /opt/matchlab/backend/.env
 sudo systemctl restart matchlab-api
 ```
 
+脚本会安装前端 systemd unit；完成 `docs/FRONTEND.md` 的前端构建和文件安装后启用：
+
+```bash
+sudo systemctl enable --now matchlab-frontend
+```
+
 生产建议值：
 
 ```dotenv
@@ -70,6 +76,7 @@ SERVER_HOST=127.0.0.1
 SERVER_PORT=8080
 GIN_MODE=release
 JWT_SECRET=替换为至少32字节的随机值
+CORS_ALLOWED_ORIGINS=http://139.224.119.187
 DB_HOST=127.0.0.1
 DB_PORT=5432
 DB_NAME=matchlab
@@ -84,7 +91,7 @@ DB_SSLMODE=disable
 openssl rand -base64 48
 ```
 
-`JWT_SECRET` 未配置时会启用公开的开发默认值。生产环境必须设置随机密钥，否则任何知道默认值的人都可以伪造 token。
+`GIN_MODE=release` 时，服务会拒绝开发默认值、示例占位值、短于 32 字符的 `JWT_SECRET`，也会拒绝不完整的数据库配置；PostgreSQL 连接失败时进程直接退出，避免出现 health 正常但业务全部 503 的伪健康部署。`CORS_ALLOWED_ORIGINS` 使用逗号分隔的完整 Origin，不要填写路径。
 
 ## 4. 验证服务
 
@@ -141,4 +148,5 @@ sudo systemctl restart matchlab-api
 - 环境文件读取失败：检查 `.env` 所有者为 `matchlab` 且权限为 `600`。
 - 数据库认证失败：核对密码、`pg_hba.conf` 及 `DB_HOST=127.0.0.1`。
 - Nginx 返回 502：先用本机 curl 检查 8080，再查看 systemd 日志。
-- 服务启动较慢：数据库配置存在但 PostgreSQL不可达；health 不依赖数据库，但启动会先尝试连接。
+- release 模式启动失败：查看日志并检查 JWT、数据库六项配置和 PostgreSQL 连通性。
+- 浏览器出现 CORS 错误：确认请求的协议、域名和端口与 `CORS_ALLOWED_ORIGINS` 完全一致。

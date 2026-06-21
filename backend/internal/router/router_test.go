@@ -28,8 +28,47 @@ func TestHealthRoute(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if body["ok"] != true || body["message"] != "MatchLab API running" {
+	data, ok := body["data"].(map[string]any)
+	if !ok || data["ok"] != true || data["message"] != "MatchLab API running" {
 		t.Fatalf("unexpected response: %#v", body)
+	}
+}
+
+func TestRouterReturnsJSONForUnknownRouteAndWrongMethod(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := New(Dependencies{})
+	tests := []struct {
+		method string
+		path   string
+		status int
+		code   string
+	}{
+		{http.MethodGet, "/api/does-not-exist", http.StatusNotFound, "not_found"},
+		{http.MethodDelete, "/api/health", http.StatusMethodNotAllowed, "method_not_allowed"},
+	}
+	for _, test := range tests {
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequest(test.method, test.path, nil))
+		if recorder.Code != test.status {
+			t.Fatalf("%s %s status=%d body=%s", test.method, test.path, recorder.Code, recorder.Body.String())
+		}
+		var body map[string]any
+		if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil || body["error"] != test.code || body["message"] == "" {
+			t.Fatalf("%s %s response=%s err=%v", test.method, test.path, recorder.Body.String(), err)
+		}
+	}
+}
+
+func TestRouterAppliesConfiguredCORSOrigin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := New(Dependencies{CORSAllowedOrigins: []string{"https://matchlab.example"}})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodOptions, "/api/health", nil)
+	request.Header.Set("Origin", "https://matchlab.example")
+	request.Header.Set("Access-Control-Request-Method", http.MethodGet)
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusNoContent || recorder.Header().Get("Access-Control-Allow-Origin") != "https://matchlab.example" {
+		t.Fatalf("status=%d headers=%v body=%s", recorder.Code, recorder.Header(), recorder.Body.String())
 	}
 }
 

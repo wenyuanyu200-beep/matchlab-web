@@ -1,5 +1,5 @@
 export const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://139.224.119.187/api"
+  process.env.NEXT_PUBLIC_API_BASE_URL || "/api"
 ).replace(/\/$/, "");
 const API_REQUEST_BASE_URL = /^https?:\/\//.test(API_BASE_URL) ? "/api-proxy" : API_BASE_URL;
 
@@ -64,8 +64,16 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   }
 
   const isJSON = response.headers.get("content-type")?.includes("application/json");
-  const payload = isJSON ? await response.json() : null;
+  let payload: { data?: unknown; error?: string; message?: string } | null = null;
+  if (isJSON) {
+    try {
+      payload = await response.json();
+    } catch {
+      throw new ApiError("服务器响应格式错误，请稍后重试", response.status, "invalid_response");
+    }
+  }
   if (!response.ok) {
+    if (response.status === 401 && token) clearToken();
     throw new ApiError(payload?.message || "请求失败，请稍后重试", response.status, payload?.error);
   }
   return (payload?.data ?? payload) as T;

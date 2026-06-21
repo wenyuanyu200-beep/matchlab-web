@@ -22,8 +22,10 @@ Host: 127.0.0.1:8080
 
 ```json
 {
-  "ok": true,
-  "message": "MatchLab API running"
+  "data": {
+    "ok": true,
+    "message": "MatchLab API running"
+  }
 }
 ```
 
@@ -404,6 +406,13 @@ curl -i -X POST "$BASE/api/match/recommend" \
 
 ```bash
 curl -i "$BASE/api/me/matches" \
+  -H "Authorization: Bearer $TOKEN_B"
+```
+
+`GET /api/matches` 是同一处理器的兼容路径，也必须携带 Bearer JWT；新代码应优先使用语义更明确的 `/api/me/matches`。
+
+```bash
+curl -i "$BASE/api/matches" \
   -H "Authorization: Bearer $TOKEN_B"
 ```
 

@@ -32,6 +32,8 @@ NEXT_PUBLIC_API_BASE_URL=http://139.224.119.187/api
 
 当地址为完整 HTTP URL 时，浏览器会请求 Next.js 的同源 `/api-proxy`，再由 Next.js 转发到公网 API，避免本地开发被浏览器 CORS 策略拦截。
 
+代码未配置环境变量时默认使用同源 `/api`，不会绑定固定公网 IP。`.env.example` 的完整 URL 仅用于本地开发连接当前公网后端。
+
 生产环境前后端位于同一域名时建议配置：
 
 ```dotenv
@@ -64,7 +66,15 @@ npm run build
 sudo chown -R matchlab:matchlab /opt/matchlab/frontend
 ```
 
-创建 `/etc/systemd/system/matchlab-frontend.service`：
+复制仓库中已审计的 systemd unit：
+
+```bash
+sudo cp /opt/matchlab/deploy/matchlab-frontend.service /etc/systemd/system/
+sudo mkdir -p /opt/matchlab/frontend/.next/cache
+sudo chown -R matchlab:matchlab /opt/matchlab/frontend/.next
+```
+
+unit 内容包括：
 
 ```ini
 [Unit]
@@ -81,6 +91,11 @@ Environment=PORT=3000
 ExecStart=/usr/bin/npm run start
 Restart=always
 RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/matchlab/frontend/.next/cache
 
 [Install]
 WantedBy=multi-user.target

@@ -22,6 +22,9 @@ import (
 func main() {
 	cfg := config.Load()
 	gin.SetMode(cfg.GinMode)
+	if err := cfg.ValidateRuntime(); err != nil {
+		log.Fatalf("invalid runtime configuration: %v", err)
+	}
 	if cfg.UsesDevelopmentJWTSecret() {
 		log.Print("WARNING: JWT_SECRET is using the development fallback; set a strong secret in production")
 	}
@@ -31,6 +34,9 @@ func main() {
 	if cfg.Database.Configured() {
 		db, err := database.Open(cfg.Database)
 		if err != nil {
+			if cfg.IsRelease() {
+				log.Fatalf("database unavailable in release mode: %v", err)
+			}
 			log.Printf("database unavailable; continuing without it: %v", err)
 		} else {
 			gormDB = db
@@ -54,9 +60,10 @@ func main() {
 	server := &http.Server{
 		Addr: cfg.Address(),
 		Handler: router.New(router.Dependencies{
-			DB:        gormDB,
-			Users:     userRepository,
-			JWTSecret: cfg.JWTSecret,
+			DB:                 gormDB,
+			Users:              userRepository,
+			JWTSecret:          cfg.JWTSecret,
+			CORSAllowedOrigins: cfg.CORSAllowedOrigins,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

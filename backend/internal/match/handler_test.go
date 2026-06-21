@@ -128,7 +128,9 @@ func TestRecommendRequiresProfile(t *testing.T) {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 	var body map[string]any
-	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil || body["error"] != "profile_required" {
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil ||
+		body["error"] != "match_recommend_failed" ||
+		body["stage"] != "database" {
 		t.Fatalf("unexpected body: %v %s", err, recorder.Body.String())
 	}
 }

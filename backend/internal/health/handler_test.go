@@ -23,16 +23,18 @@ func TestHandlerReturnsRunningStatus(t *testing.T) {
 	}
 
 	var body struct {
-		OK      bool   `json:"ok"`
-		Message string `json:"message"`
+		Data struct {
+			OK      bool   `json:"ok"`
+			Message string `json:"message"`
+		} `json:"data"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if !body.OK {
+	if !body.Data.OK {
 		t.Fatal("expected ok to be true")
 	}
-	if body.Message != "MatchLab API running" {
-		t.Fatalf("unexpected message: %q", body.Message)
+	if body.Data.Message != "MatchLab API running" {
+		t.Fatalf("unexpected message: %q", body.Data.Message)
 	}
 }

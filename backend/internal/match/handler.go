@@ -41,7 +41,7 @@ func (h *Handler) Recommend(c *gin.Context) {
 	}
 	recommendations, err := h.service.Recommend(c.Request.Context(), userID, input.TargetType, input.Limit)
 	if err != nil {
-		writeRepositoryError(c, err)
+		writeRecommendError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"recommendations": recommendations}})
@@ -77,6 +77,36 @@ func writeRepositoryError(c *gin.Context, err error) {
 	default:
 		writeError(c, http.StatusInternalServerError, "internal_error", "internal server error")
 	}
+}
+
+func writeRecommendError(c *gin.Context, err error) {
+	status := http.StatusInternalServerError
+	stage := "database"
+	message := "recommendation failed"
+	var failure *RecommendFailure
+	if errors.As(err, &failure) {
+		stage = failure.Stage
+		message = failure.Message
+	}
+
+	switch {
+	case errors.Is(err, ErrInvalidTarget), errors.Is(err, ErrInvalidLimit):
+		status = http.StatusBadRequest
+		stage = "input"
+		if failure == nil {
+			message = err.Error()
+		}
+	case errors.Is(err, ErrUnavailable):
+		status = http.StatusServiceUnavailable
+		stage = "database"
+		message = "match service unavailable"
+	case errors.Is(err, ErrProfileRequired):
+		status = http.StatusBadRequest
+		stage = "database"
+		message = "submit a questionnaire before requesting recommendations"
+	}
+
+	c.JSON(status, gin.H{"error": "match_recommend_failed", "stage": stage, "message": message})
 }
 
 func writeError(c *gin.Context, status int, code, message string) {

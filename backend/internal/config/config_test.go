@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestLoadUsesSafeDefaults(t *testing.T) {
 	t.Setenv("SERVER_HOST", "")
@@ -33,6 +36,7 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	t.Setenv("DB_USER", "matchlab_user")
 	t.Setenv("DB_PASSWORD", "secret")
 	t.Setenv("DB_SSLMODE", "require")
+	t.Setenv("CORS_ALLOWED_ORIGINS", " https://matchlab.example, http://139.224.119.187,https://matchlab.example ")
 
 	cfg := Load()
 
@@ -44,6 +48,9 @@ func TestLoadReadsEnvironment(t *testing.T) {
 	}
 	if !cfg.Database.Configured() {
 		t.Fatal("expected database to be configured")
+	}
+	if len(cfg.CORSAllowedOrigins) != 2 || cfg.CORSAllowedOrigins[0] != "https://matchlab.example" || cfg.CORSAllowedOrigins[1] != "http://139.224.119.187" {
+		t.Fatalf("unexpected CORS origins: %#v", cfg.CORSAllowedOrigins)
 	}
 }
 
@@ -71,4 +78,50 @@ func TestLoadReadsJWTSecretFromEnvironment(t *testing.T) {
 	if cfg.UsesDevelopmentJWTSecret() {
 		t.Fatal("custom JWT secret must not be marked as development-only")
 	}
+}
+
+func TestValidateRuntimeRejectsUnsafeReleaseConfiguration(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  Config
+		want string
+	}{
+		{
+			name: "development JWT secret",
+			cfg:  Config{GinMode: "release", JWTSecret: developmentJWTSecret, Database: configuredDatabase()},
+			want: "JWT_SECRET",
+		},
+		{
+			name: "placeholder JWT secret",
+			cfg:  Config{GinMode: "release", JWTSecret: "replace_with_a_long_random_secret", Database: configuredDatabase()},
+			want: "JWT_SECRET",
+		},
+		{
+			name: "incomplete database",
+			cfg:  Config{GinMode: "release", JWTSecret: strings.Repeat("s", 32)},
+			want: "database",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.cfg.ValidateRuntime(); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error=%v want substring %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestValidateRuntimeAllowsSafeReleaseAndDegradedDebug(t *testing.T) {
+	release := Config{GinMode: "release", JWTSecret: strings.Repeat("s", 32), Database: configuredDatabase()}
+	if err := release.ValidateRuntime(); err != nil {
+		t.Fatalf("safe release rejected: %v", err)
+	}
+	debug := Config{GinMode: "debug", JWTSecret: developmentJWTSecret}
+	if err := debug.ValidateRuntime(); err != nil {
+		t.Fatalf("debug configuration rejected: %v", err)
+	}
+}
+
+func configuredDatabase() Database {
+	return Database{Host: "db", Port: "5432", Name: "matchlab", User: "matchlab", Password: "secret"}
 }

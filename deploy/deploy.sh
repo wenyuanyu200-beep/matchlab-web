@@ -15,6 +15,14 @@ if ! command -v go >/dev/null 2>&1; then
     exit 1
 fi
 
+if ! command -v psql >/dev/null 2>&1; then
+    echo "PostgreSQL client is required but was not found in PATH." >&2
+    exit 1
+fi
+
+echo "Applying idempotent PostgreSQL schema..."
+runuser -u postgres -- psql -d matchlab -v ON_ERROR_STOP=1 -f "$PROJECT_ROOT/database/schema.sql"
+
 echo "Building MatchLab API..."
 mkdir -p "$PROJECT_ROOT/backend/bin"
 cd "$PROJECT_ROOT/backend"
@@ -34,6 +42,7 @@ if [ ! -f "$INSTALL_ROOT/backend/.env" ]; then
 fi
 
 install -m 0644 "$PROJECT_ROOT/deploy/matchlab-api.service" /etc/systemd/system/matchlab-api.service
+install -m 0644 "$PROJECT_ROOT/deploy/matchlab-frontend.service" /etc/systemd/system/matchlab-frontend.service
 install -m 0644 "$PROJECT_ROOT/deploy/nginx-matchlab.conf" /etc/nginx/sites-available/matchlab
 ln -sfn /etc/nginx/sites-available/matchlab /etc/nginx/sites-enabled/matchlab
 

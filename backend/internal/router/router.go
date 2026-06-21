@@ -2,6 +2,8 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
@@ -17,19 +19,27 @@ import (
 
 // Dependencies contains external services needed by HTTP routes.
 type Dependencies struct {
-	DB             *gorm.DB
-	Users          user.Repository
-	Activities     activity.Repository
-	Questionnaires questionnaire.Repository
-	Matches        matching.Repository
-	Admin          admin.Repository
-	JWTSecret      string
+	DB                 *gorm.DB
+	Users              user.Repository
+	Activities         activity.Repository
+	Questionnaires     questionnaire.Repository
+	Matches            matching.Repository
+	Admin              admin.Repository
+	JWTSecret          string
+	CORSAllowedOrigins []string
 }
 
 // New returns the application HTTP handler.
 func New(dependencies Dependencies) *gin.Engine {
 	engine := gin.New()
-	engine.Use(gin.Logger(), gin.Recovery())
+	engine.HandleMethodNotAllowed = true
+	engine.Use(middleware.CORS(dependencies.CORSAllowedOrigins), gin.Logger(), gin.Recovery())
+	engine.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not_found", "message": "route not found"})
+	})
+	engine.NoMethod(func(c *gin.Context) {
+		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "method_not_allowed", "message": "method not allowed"})
+	})
 
 	api := engine.Group("/api")
 	api.GET("/health", health.Handler)

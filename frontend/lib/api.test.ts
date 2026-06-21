@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, getToken, request, setToken, subscribeAuth } from "./api";
+import { API_BASE_URL, ApiError, getToken, request, setToken, subscribeAuth } from "./api";
 
 afterEach(() => {
   localStorage.clear();
@@ -7,6 +7,10 @@ afterEach(() => {
 });
 
 describe("API client", () => {
+  it("defaults to the same-origin API path", () => {
+    expect(API_BASE_URL).toBe("/api");
+  });
+
   it("stores and reads the access token", () => {
     setToken("token-123");
     expect(getToken()).toBe("token-123");
@@ -31,7 +35,7 @@ describe("API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(request<{ users: unknown[] }>("/admin/users")).resolves.toEqual({ users: [] });
-    expect(fetchMock.mock.calls[0][0]).toBe("/api-proxy/admin/users");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/admin/users");
     expect((fetchMock.mock.calls[0][1].headers as Headers).get("Authorization")).toBe(
       "Bearer token-123",
     );
@@ -50,6 +54,42 @@ describe("API client", () => {
 
     await expect(request("/admin/stats")).rejects.toEqual(
       expect.objectContaining<ApiError>({ status: 403, message: "无权限访问" }),
+    );
+  });
+
+  it("clears stale authentication after a protected 401", async () => {
+    const listener = vi.fn();
+    setToken("expired-token");
+    const unsubscribe = subscribeAuth(listener);
+    listener.mockClear();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: "invalid_token", message: "登录凭证无效或已过期" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    await expect(request("/me")).rejects.toEqual(
+      expect.objectContaining<ApiError>({ status: 401, code: "invalid_token" }),
+    );
+    expect(getToken()).toBeNull();
+    expect(listener).toHaveBeenCalledOnce();
+    unsubscribe();
+  });
+
+  it("turns malformed JSON into a friendly API error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("{broken", { status: 200, headers: { "Content-Type": "application/json" } }),
+      ),
+    );
+
+    await expect(request("/activities")).rejects.toEqual(
+      expect.objectContaining<ApiError>({ status: 200, code: "invalid_response" }),
     );
   });
 });
