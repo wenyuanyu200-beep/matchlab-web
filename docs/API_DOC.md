@@ -161,3 +161,141 @@ curl -i http://127.0.0.1:8080/api/me \
 ```
 
 缺少、过期、签名错误或格式错误的 token 返回 `401 Unauthorized`。
+
+## Activities and applications
+
+The activity module supports campus activities and project collaboration. Responses never include password hashes.
+
+### Create activity
+
+```bash
+curl -i -X POST http://127.0.0.1:8080/api/activities \
+  -H "Authorization: Bearer $TOKEN_A" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "title": "智能硬件比赛组队",
+    "type": "competition",
+    "description": "准备参加电子设计竞赛，寻找会单片机和结构设计的队友。",
+    "required_count": 3,
+    "tags": ["电赛", "STM32", "硬件"],
+    "preferred_tags": ["嵌入式", "焊接", "控制"],
+    "time_text": "周末下午",
+    "location_text": "西南大学"
+  }'
+```
+
+### Activity list
+
+Public. Defaults to `status=recruiting`. Supports `type`, `status`, and `keyword`.
+
+```bash
+curl -i 'http://127.0.0.1:8080/api/activities'
+curl -i 'http://127.0.0.1:8080/api/activities?type=competition&keyword=STM32'
+```
+
+### Activity detail
+
+```bash
+curl -i "http://127.0.0.1:8080/api/activities/$ACTIVITY_ID"
+```
+
+### My activities
+
+```bash
+curl -i http://127.0.0.1:8080/api/me/activities \
+  -H "Authorization: Bearer $TOKEN_A"
+```
+
+### Apply to activity
+
+```bash
+curl -i -X POST "http://127.0.0.1:8080/api/activities/$ACTIVITY_ID/apply" \
+  -H "Authorization: Bearer $TOKEN_B" \
+  -H 'Content-Type: application/json' \
+  -d '{"reason":"我有 STM32 基础，也做过焊接，希望加入这个队伍。"}'
+```
+
+### My applications
+
+```bash
+curl -i http://127.0.0.1:8080/api/me/applications \
+  -H "Authorization: Bearer $TOKEN_B"
+```
+
+### Activity applications
+
+Only the activity creator can view applications.
+
+```bash
+curl -i "http://127.0.0.1:8080/api/activities/$ACTIVITY_ID/applications" \
+  -H "Authorization: Bearer $TOKEN_A"
+```
+
+### Approve application
+
+```bash
+curl -i -X POST "http://127.0.0.1:8080/api/applications/$APPLICATION_ID/approve" \
+  -H "Authorization: Bearer $TOKEN_A"
+```
+
+### Reject application
+
+```bash
+curl -i -X POST "http://127.0.0.1:8080/api/applications/$APPLICATION_ID/reject" \
+  -H "Authorization: Bearer $TOKEN_A"
+```
+
+## Complete activity/application smoke test
+
+Replace `BASE` with the public server when testing deployment, for example `http://139.224.119.187`.
+
+```bash
+BASE=http://127.0.0.1:8080
+
+curl -i -X POST "$BASE/api/auth/register" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"creator_a@example.com","password":"12345678","nickname":"用户A","school":"西南大学"}'
+
+TOKEN_A=$(curl -s -X POST "$BASE/api/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"creator_a@example.com","password":"12345678"}' | jq -r '.data.token')
+
+ACTIVITY_ID=$(curl -s -X POST "$BASE/api/activities" \
+  -H "Authorization: Bearer $TOKEN_A" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "title": "智能硬件比赛组队",
+    "type": "competition",
+    "description": "准备参加电子设计竞赛，寻找会单片机和结构设计的队友。",
+    "required_count": 3,
+    "tags": ["电赛", "STM32", "硬件"],
+    "preferred_tags": ["嵌入式", "焊接", "控制"],
+    "time_text": "周末下午",
+    "location_text": "西南大学"
+  }' | jq -r '.data.activity.id')
+
+curl -i -X POST "$BASE/api/auth/register" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"applicant_b@example.com","password":"12345678","nickname":"用户B","school":"西南大学"}'
+
+TOKEN_B=$(curl -s -X POST "$BASE/api/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"applicant_b@example.com","password":"12345678"}' | jq -r '.data.token')
+
+curl -i "$BASE/api/activities"
+curl -i "$BASE/api/activities/$ACTIVITY_ID"
+
+APPLICATION_ID=$(curl -s -X POST "$BASE/api/activities/$ACTIVITY_ID/apply" \
+  -H "Authorization: Bearer $TOKEN_B" \
+  -H 'Content-Type: application/json' \
+  -d '{"reason":"我有 STM32 基础，也做过焊接，希望加入这个队伍。"}' | jq -r '.data.application.id')
+
+curl -i "$BASE/api/me/applications" \
+  -H "Authorization: Bearer $TOKEN_B"
+
+curl -i "$BASE/api/activities/$ACTIVITY_ID/applications" \
+  -H "Authorization: Bearer $TOKEN_A"
+
+curl -i -X POST "$BASE/api/applications/$APPLICATION_ID/approve" \
+  -H "Authorization: Bearer $TOKEN_A"
+```

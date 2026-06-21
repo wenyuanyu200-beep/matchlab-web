@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"matchlab/backend/internal/config"
 	"matchlab/backend/internal/database"
@@ -26,11 +27,13 @@ func main() {
 	}
 
 	userRepository := user.NewGormRepository(nil)
+	var gormDB *gorm.DB
 	if cfg.Database.Configured() {
 		db, err := database.Open(cfg.Database)
 		if err != nil {
 			log.Printf("database unavailable; continuing without it: %v", err)
 		} else {
+			gormDB = db
 			userRepository = user.NewGormRepository(db)
 			sqlDB, err := db.DB()
 			if err != nil {
@@ -51,6 +54,7 @@ func main() {
 	server := &http.Server{
 		Addr: cfg.Address(),
 		Handler: router.New(router.Dependencies{
+			DB:        gormDB,
 			Users:     userRepository,
 			JWTSecret: cfg.JWTSecret,
 		}),

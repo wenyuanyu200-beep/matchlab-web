@@ -66,36 +66,148 @@ CREATE TABLE IF NOT EXISTS questionnaires (
 
 CREATE TABLE IF NOT EXISTS activities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    creator_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     title VARCHAR(120) NOT NULL,
+    type VARCHAR(64) NOT NULL DEFAULT 'project',
     description TEXT NOT NULL DEFAULT '',
-    category VARCHAR(64) NOT NULL,
-    city VARCHAR(80),
-    location TEXT,
-    starts_at TIMESTAMPTZ NOT NULL,
-    ends_at TIMESTAMPTZ,
-    capacity INTEGER NOT NULL DEFAULT 2 CHECK (capacity > 0),
-    status VARCHAR(32) NOT NULL DEFAULT 'draft'
-        CHECK (status IN ('draft', 'published', 'closed', 'cancelled', 'completed')),
-    metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+    required_count INTEGER NOT NULL DEFAULT 2 CHECK (required_count > 0),
+    joined_count INTEGER NOT NULL DEFAULT 0 CHECK (joined_count >= 0),
+    tags JSONB NOT NULL DEFAULT '[]'::JSONB,
+    preferred_tags JSONB NOT NULL DEFAULT '[]'::JSONB,
+    time_text VARCHAR(120) NOT NULL DEFAULT '',
+    location_text VARCHAR(160) NOT NULL DEFAULT '',
+    status VARCHAR(32) NOT NULL DEFAULT 'recruiting'
+        CHECK (status IN ('recruiting', 'full', 'closed')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT activities_title_not_blank CHECK (BTRIM(title) <> ''),
-    CONSTRAINT activities_time_order CHECK (ends_at IS NULL OR ends_at > starts_at)
+    CONSTRAINT activities_title_not_blank CHECK (BTRIM(title) <> '')
 );
 
 CREATE TABLE IF NOT EXISTS applications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     activity_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    message TEXT,
+    applicant_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason TEXT NOT NULL DEFAULT '',
+    match_score INTEGER NOT NULL DEFAULT 0,
     status VARCHAR(32) NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'accepted', 'rejected', 'cancelled')),
-    decided_at TIMESTAMPTZ,
+        CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (activity_id, user_id)
+    UNIQUE (activity_id, applicant_id)
 );
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'activities' AND column_name = 'owner_id')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'activities' AND column_name = 'creator_id') THEN
+        ALTER TABLE activities RENAME COLUMN owner_id TO creator_id;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'activities' AND column_name = 'category')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'activities' AND column_name = 'type') THEN
+        ALTER TABLE activities RENAME COLUMN category TO type;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'activities' AND column_name = 'capacity')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'activities' AND column_name = 'required_count') THEN
+        ALTER TABLE activities RENAME COLUMN capacity TO required_count;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'activities' AND column_name = 'location')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'activities' AND column_name = 'location_text') THEN
+        ALTER TABLE activities RENAME COLUMN location TO location_text;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'applications' AND column_name = 'user_id')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'applications' AND column_name = 'applicant_id') THEN
+        ALTER TABLE applications RENAME COLUMN user_id TO applicant_id;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'applications' AND column_name = 'message')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'applications' AND column_name = 'reason') THEN
+        ALTER TABLE applications RENAME COLUMN message TO reason;
+    END IF;
+END $$;
+
+ALTER TABLE activities DROP CONSTRAINT IF EXISTS activities_status_check;
+ALTER TABLE activities DROP CONSTRAINT IF EXISTS activities_capacity_check;
+ALTER TABLE activities DROP CONSTRAINT IF EXISTS activities_time_order;
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_status_check;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'activities' AND column_name = 'starts_at') THEN
+        ALTER TABLE activities ALTER COLUMN starts_at DROP NOT NULL;
+    END IF;
+END $$;
+
+ALTER TABLE activities
+    ADD COLUMN IF NOT EXISTS creator_id UUID REFERENCES users(id) ON DELETE RESTRICT,
+    ADD COLUMN IF NOT EXISTS type VARCHAR(64) NOT NULL DEFAULT 'project',
+    ADD COLUMN IF NOT EXISTS required_count INTEGER NOT NULL DEFAULT 2,
+    ADD COLUMN IF NOT EXISTS joined_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::JSONB,
+    ADD COLUMN IF NOT EXISTS preferred_tags JSONB NOT NULL DEFAULT '[]'::JSONB,
+    ADD COLUMN IF NOT EXISTS time_text VARCHAR(120) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS location_text VARCHAR(160) NOT NULL DEFAULT '';
+
+ALTER TABLE applications
+    ADD COLUMN IF NOT EXISTS applicant_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    ADD COLUMN IF NOT EXISTS reason TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS match_score INTEGER NOT NULL DEFAULT 0;
+
+UPDATE activities SET status = 'recruiting' WHERE status IN ('draft', 'published');
+UPDATE activities SET status = 'closed' WHERE status IN ('cancelled', 'completed');
+UPDATE applications SET status = 'approved' WHERE status = 'accepted';
+UPDATE activities SET type = 'project' WHERE type IS NULL OR BTRIM(type) = '';
+UPDATE activities SET description = '' WHERE description IS NULL;
+UPDATE activities SET required_count = 2 WHERE required_count IS NULL OR required_count <= 0;
+UPDATE activities SET joined_count = 0 WHERE joined_count IS NULL OR joined_count < 0;
+UPDATE activities SET tags = '[]'::JSONB WHERE tags IS NULL;
+UPDATE activities SET preferred_tags = '[]'::JSONB WHERE preferred_tags IS NULL;
+UPDATE activities SET time_text = '' WHERE time_text IS NULL;
+UPDATE activities SET location_text = '' WHERE location_text IS NULL;
+UPDATE applications SET reason = '' WHERE reason IS NULL;
+UPDATE applications SET match_score = 0 WHERE match_score IS NULL;
+
+ALTER TABLE activities
+    ALTER COLUMN creator_id SET NOT NULL,
+    ALTER COLUMN type SET DEFAULT 'project',
+    ALTER COLUMN type SET NOT NULL,
+    ALTER COLUMN description SET DEFAULT '',
+    ALTER COLUMN description SET NOT NULL,
+    ALTER COLUMN required_count SET DEFAULT 2,
+    ALTER COLUMN required_count SET NOT NULL,
+    ALTER COLUMN joined_count SET DEFAULT 0,
+    ALTER COLUMN joined_count SET NOT NULL,
+    ALTER COLUMN tags SET DEFAULT '[]'::JSONB,
+    ALTER COLUMN tags SET NOT NULL,
+    ALTER COLUMN preferred_tags SET DEFAULT '[]'::JSONB,
+    ALTER COLUMN preferred_tags SET NOT NULL,
+    ALTER COLUMN time_text SET DEFAULT '',
+    ALTER COLUMN time_text SET NOT NULL,
+    ALTER COLUMN location_text SET DEFAULT '',
+    ALTER COLUMN location_text SET NOT NULL,
+    ALTER COLUMN status SET DEFAULT 'recruiting';
+
+ALTER TABLE applications
+    ALTER COLUMN applicant_id SET NOT NULL,
+    ALTER COLUMN reason SET DEFAULT '',
+    ALTER COLUMN reason SET NOT NULL,
+    ALTER COLUMN match_score SET DEFAULT 0,
+    ALTER COLUMN match_score SET NOT NULL,
+    ALTER COLUMN status SET DEFAULT 'pending';
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_status_check') THEN
+        ALTER TABLE activities ADD CONSTRAINT activities_status_check CHECK (status IN ('recruiting', 'full', 'closed'));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_required_count_check') THEN
+        ALTER TABLE activities ADD CONSTRAINT activities_required_count_check CHECK (required_count > 0);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'activities_joined_count_check') THEN
+        ALTER TABLE activities ADD CONSTRAINT activities_joined_count_check CHECK (joined_count >= 0);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'applications_status_check') THEN
+        ALTER TABLE applications ADD CONSTRAINT applications_status_check CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled'));
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS matches (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -139,13 +251,15 @@ CREATE TABLE IF NOT EXISTS feedbacks (
 CREATE INDEX IF NOT EXISTS questionnaires_user_created_idx
     ON questionnaires (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS activities_status_starts_idx
-    ON activities (status, starts_at);
+    ON activities (status, created_at DESC);
 CREATE INDEX IF NOT EXISTS activities_owner_idx
-    ON activities (owner_id, created_at DESC);
+    ON activities (creator_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS applications_user_status_idx
-    ON applications (user_id, status);
+    ON applications (applicant_id, status);
 CREATE INDEX IF NOT EXISTS applications_activity_status_idx
     ON applications (activity_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS applications_activity_applicant_uq
+    ON applications (activity_id, applicant_id);
 CREATE INDEX IF NOT EXISTS matches_user_score_idx
     ON matches (user_id, score DESC);
 CREATE INDEX IF NOT EXISTS matches_activity_idx
