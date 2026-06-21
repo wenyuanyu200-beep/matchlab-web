@@ -145,7 +145,7 @@ type Record struct {
 	Algorithm        string       `gorm:"column:algorithm;not null" json:"algorithm"`
 	AlgorithmVersion string       `gorm:"column:algorithm_version;size:32;not null" json:"algorithm_version"`
 	Score            float64      `gorm:"not null" json:"score"`
-	DetailScores     DetailScores `gorm:"column:detail_scores;type:jsonb;not null;default:'{}'::jsonb" json:"detail_scores"`
+	DetailScores     DetailScores `gorm:"column:detail_scores;type:jsonb;not null" json:"detail_scores"`
 	Reason           string       `gorm:"column:reason;type:text;not null;default:''" json:"reason"`
 	Status           string       `gorm:"size:32;not null;default:recommended" json:"status"`
 	CreatedAt        time.Time    `gorm:"not null" json:"created_at"`
