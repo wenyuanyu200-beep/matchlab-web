@@ -102,7 +102,7 @@ func matchingValues(left, right []string) []string {
 	for _, value := range left {
 		trimmed := strings.TrimSpace(value)
 		key := normalize(trimmed)
-		if key == "" {
+		if key == "" || containsProhibitedTerm(trimmed) {
 			continue
 		}
 		if _, ok := target[key]; !ok {
@@ -115,6 +115,15 @@ func matchingValues(left, right []string) []string {
 		result = append(result, trimmed)
 	}
 	return result
+}
+
+func containsProhibitedTerm(value string) bool {
+	for _, term := range []string{"交友", "脱单", "约会"} {
+		if strings.Contains(value, term) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizedSet(values []string) map[string]struct{} {

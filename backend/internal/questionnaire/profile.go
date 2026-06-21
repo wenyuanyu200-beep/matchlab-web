@@ -42,7 +42,7 @@ func normalizeList(values []string) StringList {
 	for _, value := range values {
 		trimmed := strings.TrimSpace(value)
 		key := strings.ToLower(trimmed)
-		if trimmed == "" {
+		if trimmed == "" || containsProhibitedTerm(trimmed) {
 			continue
 		}
 		if _, exists := seen[key]; exists {
@@ -52,6 +52,15 @@ func normalizeList(values []string) StringList {
 		result = append(result, trimmed)
 	}
 	return result
+}
+
+func containsProhibitedTerm(value string) bool {
+	for _, term := range []string{"交友", "脱单", "约会"} {
+		if strings.Contains(value, term) {
+			return true
+		}
+	}
+	return false
 }
 
 func mergeUnique(groups ...StringList) StringList {

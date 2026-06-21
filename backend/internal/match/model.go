@@ -70,7 +70,7 @@ type Record struct {
 	UserID           uuid.UUID   `gorm:"column:user_id;type:uuid;not null" json:"user_id"`
 	ActivityID       uuid.UUID   `gorm:"column:activity_id;type:uuid;not null" json:"activity_id"`
 	QuestionnaireID  *uuid.UUID  `gorm:"column:questionnaire_id;type:uuid" json:"questionnaire_id,omitempty"`
-	Score            int         `gorm:"not null" json:"score"`
+	Score            float64     `gorm:"not null" json:"score"`
 	Explanation      Explanation `gorm:"type:jsonb;not null;default:'{}'::jsonb" json:"-"`
 	AlgorithmVersion string      `gorm:"column:algorithm_version;size:32;not null" json:"algorithm_version"`
 	Status           string      `gorm:"size:32;not null;default:recommended" json:"status"`

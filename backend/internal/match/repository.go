@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -84,7 +85,7 @@ func (r *GormRepository) UpsertMatches(ctx context.Context, userID, questionnair
 				UserID:           userID,
 				ActivityID:       recommendation.Activity.ID,
 				QuestionnaireID:  &questionnaireReference,
-				Score:            recommendation.Score,
+				Score:            float64(recommendation.Score),
 				Explanation:      Explanation{DetailScores: recommendation.DetailScores, Reason: recommendation.Reason},
 				AlgorithmVersion: AlgorithmVersion,
 				Status:           "recommended",
@@ -142,7 +143,7 @@ func (r *GormRepository) ListMatches(ctx context.Context, userID uuid.UUID) ([]S
 		results = append(results, SavedRecommendation{
 			ID:               record.ID,
 			Activity:         candidate,
-			Score:            record.Score,
+			Score:            int(math.Round(record.Score)),
 			DetailScores:     record.Explanation.DetailScores,
 			Reason:           record.Explanation.Reason,
 			AlgorithmVersion: record.AlgorithmVersion,

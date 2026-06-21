@@ -56,3 +56,15 @@ func TestGenerateProfileNormalizesTagsAndUsesBaseScores(t *testing.T) {
 		t.Fatalf("missing answers should receive base scores: %#v", profile.Scores)
 	}
 }
+
+func TestGenerateProfileDoesNotEchoProhibitedTerms(t *testing.T) {
+	profile := GenerateProfile("activity", Answers{
+		Interests: StringList{"交友活动", "硬件"},
+		Skills:    StringList{"约会策划", "焊接"},
+	})
+	for _, prohibited := range []string{"交友", "脱单", "约会"} {
+		if strings.Contains(profile.Summary, prohibited) {
+			t.Fatalf("summary contains prohibited term %q: %s", prohibited, profile.Summary)
+		}
+	}
+}

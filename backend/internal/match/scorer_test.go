@@ -80,6 +80,21 @@ func TestScoreActivityNoOverlapUsesNeutralSafeReason(t *testing.T) {
 	}
 }
 
+func TestScoreActivityReasonDoesNotEchoProhibitedTerms(t *testing.T) {
+	got := ScoreActivity(UserSignals{Answers: questionnaire.Answers{
+		Interests: questionnaire.StringList{"交友活动", "硬件"},
+		Skills:    questionnaire.StringList{"约会策划", "焊接"},
+	}}, activity.Activity{
+		Tags:          activity.StringList{"交友活动", "硬件"},
+		PreferredTags: activity.StringList{"约会策划", "焊接"},
+	})
+	for _, prohibited := range []string{"交友", "脱单", "约会"} {
+		if strings.Contains(got.Reason, prohibited) {
+			t.Fatalf("reason contains prohibited term %q: %s", prohibited, got.Reason)
+		}
+	}
+}
+
 func TestRankActivitiesSortsByScoreThenCreationTimeAndLimits(t *testing.T) {
 	now := time.Now().UTC()
 	signals := UserSignals{Answers: questionnaire.Answers{Interests: questionnaire.StringList{"硬件"}}}
