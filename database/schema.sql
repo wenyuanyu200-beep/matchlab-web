@@ -247,16 +247,87 @@ CREATE TABLE IF NOT EXISTS matches (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     activity_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    target_id UUID NOT NULL,
+    target_type TEXT NOT NULL DEFAULT 'activity',
     questionnaire_id UUID REFERENCES questionnaires(id) ON DELETE SET NULL,
+    algorithm TEXT NOT NULL DEFAULT 'rules',
     score NUMERIC(5, 2) NOT NULL CHECK (score >= 0 AND score <= 100),
+    detail_scores JSONB NOT NULL DEFAULT '{}'::JSONB,
+    reason TEXT NOT NULL DEFAULT '',
     explanation JSONB NOT NULL DEFAULT '{}'::JSONB,
-    algorithm_version VARCHAR(32) NOT NULL DEFAULT 'v1',
+    algorithm_version VARCHAR(32) NOT NULL DEFAULT 'activity-rules-v1',
     status VARCHAR(32) NOT NULL DEFAULT 'recommended'
         CHECK (status IN ('recommended', 'viewed', 'accepted', 'dismissed')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, activity_id, algorithm_version)
 );
+
+ALTER TABLE matches
+    ADD COLUMN IF NOT EXISTS target_id UUID,
+    ADD COLUMN IF NOT EXISTS target_type TEXT,
+    ADD COLUMN IF NOT EXISTS algorithm TEXT,
+    ADD COLUMN IF NOT EXISTS detail_scores JSONB,
+    ADD COLUMN IF NOT EXISTS reason TEXT,
+    ADD COLUMN IF NOT EXISTS algorithm_version VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+
+UPDATE matches
+SET target_id = activity_id
+WHERE target_id IS NULL;
+
+UPDATE matches
+SET target_type = 'activity'
+WHERE target_type IS NULL OR BTRIM(target_type) = '';
+
+UPDATE matches
+SET algorithm = 'rules'
+WHERE algorithm IS NULL OR BTRIM(algorithm) = '';
+
+UPDATE matches
+SET detail_scores = COALESCE(explanation->'detail_scores', '{}'::JSONB)
+WHERE detail_scores IS NULL;
+
+UPDATE matches
+SET reason = COALESCE(explanation->>'reason', '')
+WHERE reason IS NULL;
+
+UPDATE matches
+SET algorithm_version = 'activity-rules-v1'
+WHERE algorithm_version IS NULL OR BTRIM(algorithm_version) = '';
+
+UPDATE matches
+SET updated_at = COALESCE(created_at, NOW())
+WHERE updated_at IS NULL;
+
+WITH ranked_matches AS (
+    SELECT id,
+           ROW_NUMBER() OVER (
+               PARTITION BY user_id, activity_id, algorithm_version
+               ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id DESC
+           ) AS duplicate_rank
+    FROM matches
+)
+UPDATE matches AS m
+SET algorithm_version = 'legacy-' || LEFT(MD5(m.id::TEXT), 24)
+FROM ranked_matches AS ranked
+WHERE ranked.id = m.id
+  AND ranked.duplicate_rank > 1;
+
+ALTER TABLE matches
+    ALTER COLUMN target_id SET NOT NULL,
+    ALTER COLUMN target_type SET DEFAULT 'activity',
+    ALTER COLUMN target_type SET NOT NULL,
+    ALTER COLUMN algorithm SET DEFAULT 'rules',
+    ALTER COLUMN algorithm SET NOT NULL,
+    ALTER COLUMN detail_scores SET DEFAULT '{}'::JSONB,
+    ALTER COLUMN detail_scores SET NOT NULL,
+    ALTER COLUMN reason SET DEFAULT '',
+    ALTER COLUMN reason SET NOT NULL,
+    ALTER COLUMN algorithm_version SET DEFAULT 'activity-rules-v1',
+    ALTER COLUMN algorithm_version SET NOT NULL,
+    ALTER COLUMN updated_at SET DEFAULT NOW(),
+    ALTER COLUMN updated_at SET NOT NULL;
 
 CREATE TABLE IF NOT EXISTS events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -298,6 +369,8 @@ CREATE INDEX IF NOT EXISTS matches_user_score_idx
     ON matches (user_id, score DESC);
 CREATE INDEX IF NOT EXISTS matches_user_updated_idx
     ON matches (user_id, updated_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS matches_user_activity_algorithm_uq
+    ON matches (user_id, activity_id, algorithm_version);
 CREATE INDEX IF NOT EXISTS matches_activity_idx
     ON matches (activity_id);
 CREATE INDEX IF NOT EXISTS events_type_occurred_idx

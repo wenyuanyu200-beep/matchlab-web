@@ -22,6 +22,31 @@ type DetailScores struct {
 	Goal     int `json:"goal"`
 }
 
+func (s DetailScores) Value() (driver.Value, error) {
+	encoded, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+	return string(encoded), nil
+}
+
+func (s *DetailScores) Scan(value any) error {
+	if value == nil {
+		*s = DetailScores{}
+		return nil
+	}
+	var raw []byte
+	switch typed := value.(type) {
+	case []byte:
+		raw = typed
+	case string:
+		raw = []byte(typed)
+	default:
+		return fmt.Errorf("scan detail scores: unsupported type %T", value)
+	}
+	return json.Unmarshal(raw, s)
+}
+
 type Explanation struct {
 	DetailScores DetailScores `json:"detail_scores"`
 	Reason       string       `json:"reason"`
@@ -66,16 +91,20 @@ type Recommendation struct {
 }
 
 type Record struct {
-	ID               uuid.UUID   `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	UserID           uuid.UUID   `gorm:"column:user_id;type:uuid;not null" json:"user_id"`
-	ActivityID       uuid.UUID   `gorm:"column:activity_id;type:uuid;not null" json:"activity_id"`
-	QuestionnaireID  *uuid.UUID  `gorm:"column:questionnaire_id;type:uuid" json:"questionnaire_id,omitempty"`
-	Score            float64     `gorm:"not null" json:"score"`
-	Explanation      Explanation `gorm:"type:jsonb;not null;default:'{}'::jsonb" json:"-"`
-	AlgorithmVersion string      `gorm:"column:algorithm_version;size:32;not null" json:"algorithm_version"`
-	Status           string      `gorm:"size:32;not null;default:recommended" json:"status"`
-	CreatedAt        time.Time   `gorm:"not null" json:"created_at"`
-	UpdatedAt        time.Time   `gorm:"not null" json:"updated_at"`
+	ID               uuid.UUID    `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	UserID           uuid.UUID    `gorm:"column:user_id;type:uuid;not null" json:"user_id"`
+	ActivityID       uuid.UUID    `gorm:"column:activity_id;type:uuid;not null" json:"activity_id"`
+	TargetID         uuid.UUID    `gorm:"column:target_id;type:uuid;not null" json:"target_id"`
+	TargetType       string       `gorm:"column:target_type;not null" json:"target_type"`
+	QuestionnaireID  *uuid.UUID   `gorm:"column:questionnaire_id;type:uuid" json:"questionnaire_id,omitempty"`
+	Algorithm        string       `gorm:"column:algorithm;not null" json:"algorithm"`
+	AlgorithmVersion string       `gorm:"column:algorithm_version;size:32;not null" json:"algorithm_version"`
+	Score            float64      `gorm:"not null" json:"score"`
+	DetailScores     DetailScores `gorm:"column:detail_scores;type:jsonb;not null;default:'{}'::jsonb" json:"detail_scores"`
+	Reason           string       `gorm:"column:reason;type:text;not null;default:''" json:"reason"`
+	Status           string       `gorm:"size:32;not null;default:recommended" json:"status"`
+	CreatedAt        time.Time    `gorm:"not null" json:"created_at"`
+	UpdatedAt        time.Time    `gorm:"not null" json:"updated_at"`
 }
 
 func (Record) TableName() string { return "matches" }

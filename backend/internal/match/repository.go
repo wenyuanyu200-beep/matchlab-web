@@ -80,25 +80,11 @@ func (r *GormRepository) UpsertMatches(ctx context.Context, userID, questionnair
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now().UTC()
 		for _, recommendation := range recommendations {
-			questionnaireReference := questionnaireID
-			record := Record{
-				UserID:           userID,
-				ActivityID:       recommendation.Activity.ID,
-				QuestionnaireID:  &questionnaireReference,
-				Score:            float64(recommendation.Score),
-				Explanation:      Explanation{DetailScores: recommendation.DetailScores, Reason: recommendation.Reason},
-				AlgorithmVersion: AlgorithmVersion,
-				Status:           "recommended",
-				CreatedAt:        now,
-				UpdatedAt:        now,
-			}
-			if questionnaireID == uuid.Nil {
-				record.QuestionnaireID = nil
-			}
+			record := newRecord(userID, questionnaireID, recommendation, now)
 			if err := tx.Clauses(clause.OnConflict{
 				Columns: []clause.Column{{Name: "user_id"}, {Name: "activity_id"}, {Name: "algorithm_version"}},
 				DoUpdates: clause.AssignmentColumns([]string{
-					"questionnaire_id", "score", "explanation", "status", "updated_at",
+					"target_id", "target_type", "questionnaire_id", "algorithm", "score", "detail_scores", "reason", "status", "updated_at",
 				}),
 			}).Create(&record).Error; err != nil {
 				return fmt.Errorf("upsert match for activity %s: %w", recommendation.Activity.ID, err)
@@ -106,6 +92,29 @@ func (r *GormRepository) UpsertMatches(ctx context.Context, userID, questionnair
 		}
 		return nil
 	})
+}
+
+func newRecord(userID, questionnaireID uuid.UUID, recommendation Recommendation, now time.Time) Record {
+	questionnaireReference := questionnaireID
+	record := Record{
+		UserID:           userID,
+		ActivityID:       recommendation.Activity.ID,
+		TargetID:         recommendation.Activity.ID,
+		TargetType:       "activity",
+		QuestionnaireID:  &questionnaireReference,
+		Algorithm:        "rules",
+		AlgorithmVersion: AlgorithmVersion,
+		Score:            float64(recommendation.Score),
+		DetailScores:     recommendation.DetailScores,
+		Reason:           recommendation.Reason,
+		Status:           "recommended",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if questionnaireID == uuid.Nil {
+		record.QuestionnaireID = nil
+	}
+	return record
 }
 
 func (r *GormRepository) ListMatches(ctx context.Context, userID uuid.UUID) ([]SavedRecommendation, error) {
@@ -144,8 +153,8 @@ func (r *GormRepository) ListMatches(ctx context.Context, userID uuid.UUID) ([]S
 			ID:               record.ID,
 			Activity:         candidate,
 			Score:            int(math.Round(record.Score)),
-			DetailScores:     record.Explanation.DetailScores,
-			Reason:           record.Explanation.Reason,
+			DetailScores:     record.DetailScores,
+			Reason:           record.Reason,
 			AlgorithmVersion: record.AlgorithmVersion,
 			Status:           record.Status,
 			CreatedAt:        record.CreatedAt,
