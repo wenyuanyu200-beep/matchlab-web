@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm/clause"
 
 	"matchlab/backend/internal/activity"
 )
@@ -34,6 +35,20 @@ func TestNewRecordUsesDirectRecommendationFields(t *testing.T) {
 	}
 	if record.QuestionnaireID == nil || *record.QuestionnaireID != questionnaireID || !record.UpdatedAt.Equal(now) {
 		t.Fatalf("unexpected references/timestamps: %#v", record)
+	}
+}
+
+func TestMatchUpsertOnlyReturnsID(t *testing.T) {
+	clauses := matchUpsertClauses()
+	if len(clauses) != 2 {
+		t.Fatalf("clauses=%#v", clauses)
+	}
+	returning, ok := clauses[1].(clause.Returning)
+	if !ok {
+		t.Fatalf("second clause=%T want clause.Returning", clauses[1])
+	}
+	if len(returning.Columns) != 1 || returning.Columns[0].Name != "id" {
+		t.Fatalf("returning columns=%#v want id only", returning.Columns)
 	}
 }
 

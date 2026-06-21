@@ -109,12 +109,7 @@ func (r *GormRepository) UpsertMatches(ctx context.Context, userID, questionnair
 		now := time.Now().UTC()
 		for _, recommendation := range recommendations {
 			record := newRecord(userID, questionnaireID, recommendation, now)
-			result := tx.Clauses(clause.OnConflict{
-				Columns: []clause.Column{{Name: "user_id"}, {Name: "activity_id"}, {Name: "algorithm_version"}},
-				DoUpdates: clause.AssignmentColumns([]string{
-					"target_id", "target_type", "questionnaire_id", "algorithm", "score", "detail_scores", "reason", "status", "updated_at",
-				}),
-			}).Create(&record)
+			result := tx.Clauses(matchUpsertClauses()...).Create(&record)
 			slog.Info("match_recommend_db_query",
 				"stage", "database",
 				"query", "upsert_match",
@@ -131,6 +126,18 @@ func (r *GormRepository) UpsertMatches(ctx context.Context, userID, questionnair
 		}
 		return nil
 	})
+}
+
+func matchUpsertClauses() []clause.Expression {
+	return []clause.Expression{
+		clause.OnConflict{
+			Columns: []clause.Column{{Name: "user_id"}, {Name: "activity_id"}, {Name: "algorithm_version"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"target_id", "target_type", "questionnaire_id", "algorithm", "score", "detail_scores", "reason", "status", "updated_at",
+			}),
+		},
+		clause.Returning{Columns: []clause.Column{{Name: "id"}}},
+	}
 }
 
 func newRecord(userID, questionnaireID uuid.UUID, recommendation Recommendation, now time.Time) Record {
