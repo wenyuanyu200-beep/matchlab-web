@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import ActivityDetailPage from "./page";
 
 const { request, postJSON } = vi.hoisted(() => ({ request: vi.fn(), postJSON: vi.fn() }));
-vi.mock("@/lib/api", () => ({ getToken: () => "token", request, postJSON, ApiError: class ApiError extends Error {} }));
+vi.mock("@/lib/api", () => ({ getToken: () => "token", subscribeAuth: () => () => undefined, request, postJSON, ApiError: class ApiError extends Error {} }));
 vi.mock("next/navigation", () => ({ useParams: () => ({ id: "activity-1" }) }));
 
 describe("ActivityDetailPage", () => {

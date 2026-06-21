@@ -1,6 +1,6 @@
 # MatchLab Web MVP
 
-MatchLab 面向市场的 Web 版 MVP。当前包含 Go API 基础、邮箱注册登录、JWT 鉴权、PostgreSQL 表结构和 Ubuntu 部署配置；前端尚未实现。
+MatchLab 面向市场的 Web 版 MVP。当前包含 Go API、邮箱注册登录、JWT 鉴权、活动与报名、问卷画像、智能推荐、管理员 API，以及 Next.js 前端页面。
 
 ## 当前能力
 
@@ -13,13 +13,15 @@ MatchLab 面向市场的 Web 版 MVP。当前包含 Go API 基础、邮箱注册
 - 数据库不可用时仍可启动并响应 health
 - PostgreSQL 基础 schema
 - Nginx、systemd 和 Ubuntu 部署脚本
+- Next.js + TypeScript + Tailwind CSS 响应式前端
+- 首页、登录注册、工作台、活动、问卷、推荐、报名与管理员页面
 
 ## 目录
 
 ```text
 matchlab-web/
 ├─ backend/       Go API
-├─ frontend/      下一阶段的 Next.js 前端目录
+├─ frontend/      Next.js 前端工程
 ├─ database/      PostgreSQL schema
 ├─ deploy/        Nginx、systemd、部署脚本
 └─ docs/          MVP、API 和部署文档
@@ -60,6 +62,17 @@ go run .\cmd\server
 ```
 
 不要提交 `.env`；它已被 `backend/.gitignore` 忽略。
+
+前端本地运行：
+
+```bash
+cd matchlab-web/frontend
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
+详细说明见 [docs/FRONTEND.md](docs/FRONTEND.md)。
 
 ## 测试 health
 

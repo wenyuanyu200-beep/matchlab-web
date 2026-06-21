@@ -1,6 +1,7 @@
 export const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://139.224.119.187/api"
 ).replace(/\/$/, "");
+const API_REQUEST_BASE_URL = /^https?:\/\//.test(API_BASE_URL) ? "/api-proxy" : API_BASE_URL;
 
 const TOKEN_KEY = "matchlab_token";
 const AUTH_EVENT = "matchlab-auth-change";
@@ -54,7 +55,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`, {
+    response = await fetch(`${API_REQUEST_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`, {
       ...options,
       headers,
     });

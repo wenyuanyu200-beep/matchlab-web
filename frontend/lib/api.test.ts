@@ -31,7 +31,7 @@ describe("API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(request<{ users: unknown[] }>("/admin/users")).resolves.toEqual({ users: [] });
-    expect(fetchMock.mock.calls[0][0]).toBe("http://139.224.119.187/api/admin/users");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api-proxy/admin/users");
     expect((fetchMock.mock.calls[0][1].headers as Headers).get("Authorization")).toBe(
       "Bearer token-123",
     );
