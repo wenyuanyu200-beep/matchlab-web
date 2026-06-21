@@ -109,7 +109,11 @@ func TestDetailScoresScanHandlesDriverShapes(t *testing.T) {
 		{name: "json string", value: `{"interest":26,"skill":22,"type":20,"time":8,"goal":12}`, want: want},
 		{name: "double encoded json", value: `"{\"interest\":26,\"skill\":22,\"type\":20,\"time\":8,\"goal\":12}"`, want: want},
 		{name: "legacy quoted jsonb cast", value: `'{}'::jsonb`, want: DetailScores{}},
+		{name: "legacy quoted jsonb cast bytes", value: []byte(`'{}'::jsonb`), want: DetailScores{}},
 		{name: "legacy jsonb cast", value: `{}::jsonb`, want: DetailScores{}},
+		{name: "legacy trailing quote", value: `{}'`, want: DetailScores{}},
+		{name: "legacy quoted json", value: `'{}'`, want: DetailScores{}},
+		{name: "legacy quoted full jsonb cast", value: `'{"interest":30,"skill":25,"type":20,"time":8,"goal":12}'::jsonb`, want: DetailScores{Interest: 30, Skill: 25, Type: 20, Time: 8, Goal: 12}},
 	}
 
 	for _, test := range tests {

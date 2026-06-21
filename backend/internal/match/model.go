@@ -84,6 +84,10 @@ func cleanDetailScoresJSON(data []byte) []byte {
 	trimmed = strings.TrimSpace(trimmed)
 	if len(trimmed) >= 2 && trimmed[0] == '\'' && trimmed[len(trimmed)-1] == '\'' {
 		trimmed = trimmed[1 : len(trimmed)-1]
+	} else if len(trimmed) >= 1 && trimmed[len(trimmed)-1] == '\'' {
+		trimmed = trimmed[:len(trimmed)-1]
+	} else if len(trimmed) >= 1 && trimmed[0] == '\'' {
+		trimmed = trimmed[1:]
 	}
 	return []byte(trimmed)
 }
