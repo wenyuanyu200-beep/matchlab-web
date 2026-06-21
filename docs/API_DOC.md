@@ -455,10 +455,13 @@ curl -s "$BASE/api/me/matches" \
 ```sql
 SELECT user_id,
        activity_id,
+       target_id,
+       target_type,
+       algorithm,
        algorithm_version,
        score,
-       explanation->'detail_scores' AS detail_scores,
-       explanation->>'reason' AS reason,
+       detail_scores,
+       reason,
        updated_at
 FROM matches
 WHERE user_id = '<USER_B_ID>'
@@ -497,3 +500,55 @@ A3: 1, 8, 8
 ## 数据库增量升级
 
 本次必须在发布新二进制前执行更新后的 `database/schema.sql`。脚本使用 `IF NOT EXISTS` 和兼容性回填，可重复执行；不需要删除数据库，也不需要重新导入 users、activities 或 applications 数据。
+
+迁移会为 matches 增加 `target_id`、`target_type`、`algorithm`、`detail_scores`、`reason` 等独立字段。旧 `explanation` 和 `status` 字段继续保留；已有重复推荐行不会删除，而是转换为独立的 legacy 算法版本后再建立唯一索引。
+
+## 服务器发布版本核验
+
+服务器出现接口 404 时，先确认正在构建的目录确实包含本模块，而不是直接重复重启旧二进制：
+
+```bash
+cd ~/matchlab-web
+
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+git rev-parse HEAD
+
+find backend/internal/questionnaire \
+     backend/internal/match \
+     backend/internal/algorithm \
+     -maxdepth 1 -type f -print | sort
+```
+
+文件列表必须包含 questionnaire 与 match 的 `model.go`、`repository.go`、`service.go`、`handler.go`，以及 algorithm 的 `km.go`、`km_test.go`。
+
+先升级数据库，再按要求测试和构建：
+
+```bash
+sudo -u postgres psql \
+  -d matchlab \
+  -v ON_ERROR_STOP=1 \
+  -f database/schema.sql
+
+cd backend
+go test ./...
+mkdir -p bin
+go build -o bin/matchlab-api cmd/server/main.go
+ls -l --time-style=long-iso bin/matchlab-api
+```
+
+安装并重启服务：
+
+```bash
+cd ..
+sudo sh deploy/deploy.sh
+sudo systemctl restart matchlab-api
+sudo systemctl status matchlab-api --no-pager
+sudo journalctl -u matchlab-api -n 100 --no-pager
+
+curl -i http://127.0.0.1:8080/api/health
+curl -i http://139.224.119.187/api/health
+```
+
+最后使用本文“用户 B 完整推荐测试”中的四个接口命令验证。只要有效 JWT 请求不再返回 404，就说明新路由已经进入运行中的二进制；随后再根据 2xx、4xx 或 5xx 响应检查数据库和请求数据。
