@@ -35,16 +35,38 @@ func (s *DetailScores) Scan(value any) error {
 		*s = DetailScores{}
 		return nil
 	}
-	var raw []byte
-	switch typed := value.(type) {
+
+	var data []byte
+
+	switch v := value.(type) {
 	case []byte:
-		raw = typed
+		data = v
 	case string:
-		raw = []byte(typed)
+		data = []byte(v)
 	default:
-		return fmt.Errorf("scan detail scores: unsupported type %T", value)
+		return fmt.Errorf("unsupported DetailScores scan type: %T", value)
 	}
-	return json.Unmarshal(raw, s)
+
+	if len(data) == 0 {
+		*s = DetailScores{}
+		return nil
+	}
+
+	var decoded DetailScores
+	if err := json.Unmarshal(data, &decoded); err == nil {
+		*s = decoded
+		return nil
+	}
+
+	var unquoted string
+	if err := json.Unmarshal(data, &unquoted); err == nil {
+		if err := json.Unmarshal([]byte(unquoted), &decoded); err == nil {
+			*s = decoded
+			return nil
+		}
+	}
+
+	return fmt.Errorf("scan DetailScores: invalid json: %s", string(data))
 }
 
 type Explanation struct {
