@@ -46,3 +46,29 @@ func TestLoadReadsEnvironment(t *testing.T) {
 		t.Fatal("expected database to be configured")
 	}
 }
+
+func TestLoadUsesDevelopmentJWTSecretByDefault(t *testing.T) {
+	t.Setenv("JWT_SECRET", "")
+
+	cfg := Load()
+
+	if cfg.JWTSecret == "" {
+		t.Fatal("expected a development JWT secret")
+	}
+	if !cfg.UsesDevelopmentJWTSecret() {
+		t.Fatal("expected default secret to be marked as development-only")
+	}
+}
+
+func TestLoadReadsJWTSecretFromEnvironment(t *testing.T) {
+	t.Setenv("JWT_SECRET", "production-test-secret")
+
+	cfg := Load()
+
+	if cfg.JWTSecret != "production-test-secret" {
+		t.Fatalf("unexpected JWT secret: %q", cfg.JWTSecret)
+	}
+	if cfg.UsesDevelopmentJWTSecret() {
+		t.Fatal("custom JWT secret must not be marked as development-only")
+	}
+}

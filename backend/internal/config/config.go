@@ -8,11 +8,14 @@ import (
 	"github.com/joho/godotenv"
 )
 
+const developmentJWTSecret = "matchlab-development-secret-change-before-production"
+
 // Config contains process-level configuration.
 type Config struct {
 	ServerHost string
 	ServerPort string
 	GinMode    string
+	JWTSecret  string
 	Database   Database
 }
 
@@ -35,6 +38,7 @@ func Load() Config {
 		ServerHost: envOrDefault("SERVER_HOST", "127.0.0.1"),
 		ServerPort: envOrDefault("SERVER_PORT", "8080"),
 		GinMode:    envOrDefault("GIN_MODE", "debug"),
+		JWTSecret:  envOrDefault("JWT_SECRET", developmentJWTSecret),
 		Database: Database{
 			Host:     strings.TrimSpace(os.Getenv("DB_HOST")),
 			Port:     envOrDefault("DB_PORT", "5432"),
@@ -44,6 +48,11 @@ func Load() Config {
 			SSLMode:  envOrDefault("DB_SSLMODE", "disable"),
 		},
 	}
+}
+
+// UsesDevelopmentJWTSecret reports whether the unsafe development fallback is active.
+func (c Config) UsesDevelopmentJWTSecret() bool {
+	return c.JWTSecret == developmentJWTSecret
 }
 
 // Address returns the HTTP listen address.

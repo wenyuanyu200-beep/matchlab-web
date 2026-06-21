@@ -1,2 +1,2 @@
-// Package auth will contain registration, login, and token handling.
+// Package auth contains registration, login, and JWT token handling.
 package auth

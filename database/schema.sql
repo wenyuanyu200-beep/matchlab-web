@@ -1,19 +1,35 @@
 BEGIN;
 
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    nickname VARCHAR(80) NOT NULL DEFAULT '',
     role VARCHAR(32) NOT NULL DEFAULT 'user'
         CHECK (role IN ('user', 'admin')),
+    school VARCHAR(120) NOT NULL DEFAULT '',
     status VARCHAR(32) NOT NULL DEFAULT 'active'
         CHECK (status IN ('active', 'disabled')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT users_email_not_blank CHECK (BTRIM(email) <> '')
 );
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS nickname VARCHAR(80) NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS school VARCHAR(120) NOT NULL DEFAULT '';
+
+UPDATE users SET nickname = '' WHERE nickname IS NULL;
+UPDATE users SET school = '' WHERE school IS NULL;
+
+ALTER TABLE users
+    ALTER COLUMN nickname SET DEFAULT '',
+    ALTER COLUMN nickname SET NOT NULL,
+    ALTER COLUMN school SET DEFAULT '',
+    ALTER COLUMN school SET NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_uq
     ON users (LOWER(email));

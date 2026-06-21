@@ -1,11 +1,13 @@
 # MatchLab Web MVP
 
-MatchLab 面向市场的 Web 版 MVP。本阶段只包含可运行的 Go API 基础、PostgreSQL 初始表结构和 Ubuntu 部署配置；前端及完整注册登录尚未实现。
+MatchLab 面向市场的 Web 版 MVP。当前包含 Go API 基础、邮箱注册登录、JWT 鉴权、PostgreSQL 表结构和 Ubuntu 部署配置；前端尚未实现。
 
 ## 当前能力
 
 - Gin HTTP 服务，默认监听 `127.0.0.1:8080`
 - `GET /api/health` 存活检查
+- 邮箱注册、登录和 `GET /api/me`
+- bcrypt 密码哈希与 7 天 JWT access token
 - godotenv 环境配置
 - GORM + PostgreSQL 连接入口
 - 数据库不可用时仍可启动并响应 health
@@ -39,6 +41,7 @@ go run ./cmd/server
 SERVER_HOST=127.0.0.1
 SERVER_PORT=8080
 GIN_MODE=debug
+JWT_SECRET=local-development-secret
 ```
 
 配置数据库时复制示例并替换密码：
@@ -105,6 +108,8 @@ GRANT USAGE, CREATE ON SCHEMA public TO matchlab_user;
 
 ```bash
 cd matchlab-web
+sudo -u postgres psql -d matchlab -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+sudo -u postgres psql -d matchlab -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto;'
 PGPASSWORD='替换为高强度密码' psql \
   -h 127.0.0.1 -U matchlab_user -d matchlab \
   -v ON_ERROR_STOP=1 -f database/schema.sql
@@ -116,6 +121,7 @@ PGPASSWORD='替换为高强度密码' psql \
 SERVER_HOST=127.0.0.1
 SERVER_PORT=8080
 GIN_MODE=release
+JWT_SECRET=替换为至少32字节的随机值
 DB_HOST=127.0.0.1
 DB_PORT=5432
 DB_NAME=matchlab
@@ -148,16 +154,12 @@ sudo journalctl -u matchlab-api -n 100 --no-pager
 
 完整步骤见 [docs/DEPLOY.md](docs/DEPLOY.md)。
 
-## 下一步：注册登录
+## JWT 安全要求
 
-建议保持 MVP 边界，依次实现：
+未设置 `JWT_SECRET` 时，服务会使用开发默认值并打印警告。该默认值只便于本地运行，生产环境必须替换：
 
-1. 定义注册、登录请求及统一错误响应。
-2. 使用 bcrypt 哈希密码，禁止保存明文密码。
-3. 实现用户 repository 与 email 小写唯一性冲突处理。
-4. 添加 `POST /api/auth/register` 和 `POST /api/auth/login`。
-5. 签发短期 JWT access token，并实现认证中间件。
-6. 添加 `GET /api/users/me` 验证完整认证链路。
-7. 通过 PostgreSQL 集成测试覆盖注册、重复邮箱、错误密码和有效 token。
+```bash
+openssl rand -base64 48
+```
 
-刷新 token、短信登录、第三方登录、找回密码和复杂权限系统暂缓。
+将结果写入 `/opt/matchlab/backend/.env` 的 `JWT_SECRET`，不要提交真实 `.env`。完整接口及 curl 示例见 [docs/API_DOC.md](docs/API_DOC.md)。

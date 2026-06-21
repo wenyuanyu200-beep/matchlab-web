@@ -1,2 +1,2 @@
-// Package user will contain user and profile use cases.
+// Package user contains user models and persistence contracts.
 package user

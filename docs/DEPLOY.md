@@ -32,6 +32,8 @@ GRANT USAGE, CREATE ON SCHEMA public TO matchlab_user;
 导入 schema：
 
 ```bash
+sudo -u postgres psql -d matchlab -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+sudo -u postgres psql -d matchlab -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto;'
 PGPASSWORD='替换为高强度密码' psql \
   -h 127.0.0.1 -U matchlab_user -d matchlab \
   -v ON_ERROR_STOP=1 -f database/schema.sql
@@ -67,6 +69,7 @@ sudo systemctl restart matchlab-api
 SERVER_HOST=127.0.0.1
 SERVER_PORT=8080
 GIN_MODE=release
+JWT_SECRET=替换为至少32字节的随机值
 DB_HOST=127.0.0.1
 DB_PORT=5432
 DB_NAME=matchlab
@@ -74,6 +77,14 @@ DB_USER=matchlab_user
 DB_PASSWORD=替换为高强度密码
 DB_SSLMODE=disable
 ```
+
+生成生产 JWT 密钥：
+
+```bash
+openssl rand -base64 48
+```
+
+`JWT_SECRET` 未配置时会启用公开的开发默认值。生产环境必须设置随机密钥，否则任何知道默认值的人都可以伪造 token。
 
 ## 4. 验证服务
 
