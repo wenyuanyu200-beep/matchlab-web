@@ -3,7 +3,6 @@ package questionnaire
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -12,11 +11,15 @@ import (
 )
 
 type Handler struct {
-	repository Repository
+	service Service
 }
 
 func NewHandler(repository Repository) *Handler {
-	return &Handler{repository: repository}
+	return NewHandlerWithService(NewService(repository))
+}
+
+func NewHandlerWithService(service Service) *Handler {
+	return &Handler{service: service}
 }
 
 type submitRequest struct {
@@ -35,14 +38,7 @@ func (h *Handler) Submit(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "invalid_request", "invalid request body")
 		return
 	}
-	input.Mode = strings.ToLower(strings.TrimSpace(input.Mode))
-	if input.Mode != "activity" {
-		writeError(c, http.StatusBadRequest, "invalid_request", "mode must be activity")
-		return
-	}
-	input.Answers = normalizeAnswers(input.Answers)
-	generated := GenerateProfile(input.Mode, input.Answers)
-	questionnaire, profile, err := h.repository.Submit(c.Request.Context(), userID, input.Mode, input.Answers, generated)
+	questionnaire, profile, err := h.service.Submit(c.Request.Context(), userID, input.Mode, input.Answers)
 	if err != nil {
 		writeRepositoryError(c, err)
 		return
@@ -50,19 +46,22 @@ func (h *Handler) Submit(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"data": gin.H{"questionnaire": questionnaire, "profile": profile}})
 }
 
-func (h *Handler) CurrentProfile(c *gin.Context) {
+func (h *Handler) Profile(c *gin.Context) {
 	userID, ok := currentUserID(c)
 	if !ok {
 		writeError(c, http.StatusUnauthorized, "invalid_token", "invalid or expired token")
 		return
 	}
-	profile, err := h.repository.GetProfile(c.Request.Context(), userID)
+	profile, err := h.service.Profile(c.Request.Context(), userID)
 	if err != nil {
 		writeRepositoryError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"profile": profile}})
 }
+
+// CurrentProfile is kept as a compatibility alias while callers migrate to Profile.
+func (h *Handler) CurrentProfile(c *gin.Context) { h.Profile(c) }
 
 func currentUserID(c *gin.Context) (uuid.UUID, bool) {
 	id, err := uuid.Parse(c.GetString(auth.ContextUserIDKey))
@@ -71,6 +70,8 @@ func currentUserID(c *gin.Context) (uuid.UUID, bool) {
 
 func writeRepositoryError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, ErrInvalidMode):
+		writeError(c, http.StatusBadRequest, "invalid_request", ErrInvalidMode.Error())
 	case errors.Is(err, ErrUnavailable):
 		writeError(c, http.StatusServiceUnavailable, "service_unavailable", "questionnaire service unavailable")
 	case errors.Is(err, ErrProfileNotFound):
