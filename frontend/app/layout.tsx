@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
   title: "MatchLab｜校园活动与项目协作平台",
@@ -13,7 +14,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" className="h-full antialiased">
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <Navbar />
+        <main className="flex-1">{children}</main>
+        <footer className="border-t border-slate-200 bg-white py-6 text-center text-sm text-slate-500">
+          MatchLab · 校园活动与项目协作平台
+        </footer>
+      </body>
     </html>
   );
 }

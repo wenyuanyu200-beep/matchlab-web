@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, getToken, request, setToken } from "./api";
+import { ApiError, getToken, request, setToken, subscribeAuth } from "./api";
 
 afterEach(() => {
   localStorage.clear();
@@ -10,6 +10,14 @@ describe("API client", () => {
   it("stores and reads the access token", () => {
     setToken("token-123");
     expect(getToken()).toBe("token-123");
+  });
+
+  it("notifies subscribers when authentication changes", () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeAuth(listener);
+    setToken("token-123");
+    expect(listener).toHaveBeenCalledOnce();
+    unsubscribe();
   });
 
   it("adds authorization and unwraps the data envelope", async () => {

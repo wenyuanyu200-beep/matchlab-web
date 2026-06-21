@@ -3,6 +3,7 @@ export const API_BASE_URL = (
 ).replace(/\/$/, "");
 
 const TOKEN_KEY = "matchlab_token";
+const AUTH_EVENT = "matchlab-auth-change";
 
 export class ApiError extends Error {
   constructor(
@@ -21,11 +22,27 @@ export function getToken(): string | null {
 }
 
 export function setToken(token: string): void {
-  if (typeof window !== "undefined") window.localStorage.setItem(TOKEN_KEY, token);
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(TOKEN_KEY, token);
+    window.dispatchEvent(new Event(AUTH_EVENT));
+  }
 }
 
 export function clearToken(): void {
-  if (typeof window !== "undefined") window.localStorage.removeItem(TOKEN_KEY);
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(TOKEN_KEY);
+    window.dispatchEvent(new Event(AUTH_EVENT));
+  }
+}
+
+export function subscribeAuth(listener: () => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
+  window.addEventListener(AUTH_EVENT, listener);
+  window.addEventListener("storage", listener);
+  return () => {
+    window.removeEventListener(AUTH_EVENT, listener);
+    window.removeEventListener("storage", listener);
+  };
 }
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
