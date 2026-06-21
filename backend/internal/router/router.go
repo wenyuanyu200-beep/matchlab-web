@@ -8,16 +8,20 @@ import (
 	"matchlab/backend/internal/activity"
 	"matchlab/backend/internal/auth"
 	"matchlab/backend/internal/health"
+	matching "matchlab/backend/internal/match"
 	"matchlab/backend/internal/middleware"
+	"matchlab/backend/internal/questionnaire"
 	"matchlab/backend/internal/user"
 )
 
 // Dependencies contains external services needed by HTTP routes.
 type Dependencies struct {
-	DB         *gorm.DB
-	Users      user.Repository
-	Activities activity.Repository
-	JWTSecret  string
+	DB             *gorm.DB
+	Users          user.Repository
+	Activities     activity.Repository
+	Questionnaires questionnaire.Repository
+	Matches        matching.Repository
+	JWTSecret      string
 }
 
 // New returns the application HTTP handler.
@@ -36,24 +40,40 @@ func New(dependencies Dependencies) *gin.Engine {
 	if activities == nil {
 		activities = activity.NewGormRepository(dependencies.DB)
 	}
+	questionnaires := dependencies.Questionnaires
+	if questionnaires == nil {
+		questionnaires = questionnaire.NewGormRepository(dependencies.DB)
+	}
+	matches := dependencies.Matches
+	if matches == nil {
+		matches = matching.NewGormRepository(dependencies.DB)
+	}
 	tokens := auth.NewTokenManager(dependencies.JWTSecret)
 	authHandler := auth.NewHandler(auth.NewService(users, tokens))
 	activityHandler := activity.NewHandler(activities)
+	questionnaireHandler := questionnaire.NewHandler(questionnaires)
+	matchHandler := matching.NewHandler(matches)
+	authenticated := middleware.RequireAuth(tokens)
 
 	authRoutes := api.Group("/auth")
 	authRoutes.POST("/register", authHandler.Register)
 	authRoutes.POST("/login", authHandler.Login)
-	api.GET("/me", middleware.RequireAuth(tokens), authHandler.Me)
+	api.GET("/me", authenticated, authHandler.Me)
 
 	api.GET("/activities", activityHandler.List)
 	api.GET("/activities/:id", activityHandler.Detail)
-	api.POST("/activities", middleware.RequireAuth(tokens), activityHandler.Create)
-	api.GET("/me/activities", middleware.RequireAuth(tokens), activityHandler.MyActivities)
-	api.POST("/activities/:id/apply", middleware.RequireAuth(tokens), activityHandler.Apply)
-	api.GET("/me/applications", middleware.RequireAuth(tokens), activityHandler.MyApplications)
-	api.GET("/activities/:id/applications", middleware.RequireAuth(tokens), activityHandler.ActivityApplications)
-	api.POST("/applications/:id/approve", middleware.RequireAuth(tokens), activityHandler.Approve)
-	api.POST("/applications/:id/reject", middleware.RequireAuth(tokens), activityHandler.Reject)
+	api.POST("/activities", authenticated, activityHandler.Create)
+	api.GET("/me/activities", authenticated, activityHandler.MyActivities)
+	api.POST("/activities/:id/apply", authenticated, activityHandler.Apply)
+	api.GET("/me/applications", authenticated, activityHandler.MyApplications)
+	api.GET("/activities/:id/applications", authenticated, activityHandler.ActivityApplications)
+	api.POST("/applications/:id/approve", authenticated, activityHandler.Approve)
+	api.POST("/applications/:id/reject", authenticated, activityHandler.Reject)
+
+	api.POST("/questionnaires", authenticated, questionnaireHandler.Submit)
+	api.GET("/me/profile", authenticated, questionnaireHandler.CurrentProfile)
+	api.POST("/match/recommend", authenticated, matchHandler.Recommend)
+	api.GET("/me/matches", authenticated, matchHandler.CurrentMatches)
 
 	return engine
 }

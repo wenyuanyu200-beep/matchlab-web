@@ -45,6 +45,10 @@ CREATE TABLE IF NOT EXISTS profiles (
     birth_date DATE,
     interests JSONB NOT NULL DEFAULT '[]'::JSONB,
     preferences JSONB NOT NULL DEFAULT '{}'::JSONB,
+    profile_type VARCHAR(32) NOT NULL DEFAULT 'activity',
+    tags JSONB NOT NULL DEFAULT '[]'::JSONB,
+    scores JSONB NOT NULL DEFAULT '{}'::JSONB,
+    summary TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT profiles_display_name_not_blank CHECK (BTRIM(display_name) <> '')
@@ -53,6 +57,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 CREATE TABLE IF NOT EXISTS questionnaires (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    mode VARCHAR(32) NOT NULL DEFAULT 'activity',
     version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0),
     answers JSONB NOT NULL DEFAULT '{}'::JSONB,
     scores JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -63,6 +68,35 @@ CREATE TABLE IF NOT EXISTS questionnaires (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, version)
 );
+
+ALTER TABLE profiles
+    ADD COLUMN IF NOT EXISTS profile_type VARCHAR(32) NOT NULL DEFAULT 'activity',
+    ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::JSONB,
+    ADD COLUMN IF NOT EXISTS scores JSONB NOT NULL DEFAULT '{}'::JSONB,
+    ADD COLUMN IF NOT EXISTS summary TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE questionnaires
+    ADD COLUMN IF NOT EXISTS mode VARCHAR(32) NOT NULL DEFAULT 'activity';
+
+UPDATE profiles SET profile_type = 'activity' WHERE profile_type IS NULL OR BTRIM(profile_type) = '';
+UPDATE profiles SET tags = '[]'::JSONB WHERE tags IS NULL;
+UPDATE profiles SET scores = '{}'::JSONB WHERE scores IS NULL;
+UPDATE profiles SET summary = '' WHERE summary IS NULL;
+UPDATE questionnaires SET mode = 'activity' WHERE mode IS NULL OR BTRIM(mode) = '';
+
+ALTER TABLE profiles
+    ALTER COLUMN profile_type SET DEFAULT 'activity',
+    ALTER COLUMN profile_type SET NOT NULL,
+    ALTER COLUMN tags SET DEFAULT '[]'::JSONB,
+    ALTER COLUMN tags SET NOT NULL,
+    ALTER COLUMN scores SET DEFAULT '{}'::JSONB,
+    ALTER COLUMN scores SET NOT NULL,
+    ALTER COLUMN summary SET DEFAULT '',
+    ALTER COLUMN summary SET NOT NULL;
+
+ALTER TABLE questionnaires
+    ALTER COLUMN mode SET DEFAULT 'activity',
+    ALTER COLUMN mode SET NOT NULL;
 
 CREATE TABLE IF NOT EXISTS activities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -262,6 +296,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS applications_activity_applicant_uq
     ON applications (activity_id, applicant_id);
 CREATE INDEX IF NOT EXISTS matches_user_score_idx
     ON matches (user_id, score DESC);
+CREATE INDEX IF NOT EXISTS matches_user_updated_idx
+    ON matches (user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS matches_activity_idx
     ON matches (activity_id);
 CREATE INDEX IF NOT EXISTS events_type_occurred_idx
