@@ -51,8 +51,8 @@ func New(dependencies Dependencies) *gin.Engine {
 	tokens := auth.NewTokenManager(dependencies.JWTSecret)
 	authHandler := auth.NewHandler(auth.NewService(users, tokens))
 	activityHandler := activity.NewHandler(activities)
-	questionnaireHandler := questionnaire.NewHandler(questionnaires)
-	matchHandler := matching.NewHandler(matches)
+	questionnaireHandler := questionnaire.NewHandlerWithService(questionnaire.NewService(questionnaires))
+	matchHandler := matching.NewHandlerWithService(matching.NewService(matches))
 	authenticated := middleware.RequireAuth(tokens)
 
 	authRoutes := api.Group("/auth")
@@ -71,9 +71,9 @@ func New(dependencies Dependencies) *gin.Engine {
 	api.POST("/applications/:id/reject", authenticated, activityHandler.Reject)
 
 	api.POST("/questionnaires", authenticated, questionnaireHandler.Submit)
-	api.GET("/me/profile", authenticated, questionnaireHandler.CurrentProfile)
+	api.GET("/me/profile", authenticated, questionnaireHandler.Profile)
 	api.POST("/match/recommend", authenticated, matchHandler.Recommend)
-	api.GET("/me/matches", authenticated, matchHandler.CurrentMatches)
+	api.GET("/me/matches", authenticated, matchHandler.MyMatches)
 
 	return engine
 }

@@ -61,9 +61,6 @@ func (h *Handler) MyMatches(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"matches": matches}})
 }
 
-// CurrentMatches is kept as a compatibility alias while callers migrate to MyMatches.
-func (h *Handler) CurrentMatches(c *gin.Context) { h.MyMatches(c) }
-
 func currentUserID(c *gin.Context) (uuid.UUID, bool) {
 	id, err := uuid.Parse(c.GetString(auth.ContextUserIDKey))
 	return id, err == nil

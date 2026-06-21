@@ -64,7 +64,7 @@ func questionnaireEngine(repository Repository, userID uuid.UUID) *gin.Engine {
 	})
 	handler := NewHandler(repository)
 	engine.POST("/api/questionnaires", handler.Submit)
-	engine.GET("/api/me/profile", handler.CurrentProfile)
+	engine.GET("/api/me/profile", handler.Profile)
 	return engine
 }
 

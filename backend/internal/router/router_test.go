@@ -8,6 +8,10 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+
+	"matchlab/backend/internal/auth"
+	"matchlab/backend/internal/user"
 )
 
 func TestHealthRoute(t *testing.T) {
@@ -26,6 +30,43 @@ func TestHealthRoute(t *testing.T) {
 	}
 	if body["ok"] != true || body["message"] != "MatchLab API running" {
 		t.Fatalf("unexpected response: %#v", body)
+	}
+}
+
+func TestQuestionnaireAndMatchRoutesAreRegistered(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const secret = "router-test-secret"
+	token, err := auth.NewTokenManager(secret).Issue(user.User{ID: uuid.New(), Role: "user"})
+	if err != nil {
+		t.Fatalf("issue token: %v", err)
+	}
+	engine := New(Dependencies{JWTSecret: secret})
+	tests := []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{method: http.MethodPost, path: "/api/questionnaires", body: `{"mode":"activity","answers":{}}`},
+		{method: http.MethodGet, path: "/api/me/profile"},
+		{method: http.MethodPost, path: "/api/match/recommend", body: `{"target_type":"activity"}`},
+		{method: http.MethodGet, path: "/api/me/matches"},
+	}
+	for _, test := range tests {
+		t.Run(test.method+" "+test.path, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(test.method, test.path, bytes.NewBufferString(test.body))
+			request.Header.Set("Authorization", "Bearer "+token)
+			request.Header.Set("Content-Type", "application/json")
+
+			engine.ServeHTTP(recorder, request)
+
+			if recorder.Code == http.StatusNotFound {
+				t.Fatalf("route returned 404: %s", recorder.Body.String())
+			}
+			if recorder.Code != http.StatusServiceUnavailable {
+				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+			}
+		})
 	}
 }
 

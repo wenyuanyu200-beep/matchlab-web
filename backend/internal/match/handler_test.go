@@ -53,7 +53,7 @@ func matchEngine(repository Repository, userID uuid.UUID) *gin.Engine {
 	})
 	handler := NewHandler(repository)
 	engine.POST("/api/match/recommend", handler.Recommend)
-	engine.GET("/api/me/matches", handler.CurrentMatches)
+	engine.GET("/api/me/matches", handler.MyMatches)
 	return engine
 }
 

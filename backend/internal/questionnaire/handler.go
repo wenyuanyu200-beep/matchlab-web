@@ -60,9 +60,6 @@ func (h *Handler) Profile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"profile": profile}})
 }
 
-// CurrentProfile is kept as a compatibility alias while callers migrate to Profile.
-func (h *Handler) CurrentProfile(c *gin.Context) { h.Profile(c) }
-
 func currentUserID(c *gin.Context) (uuid.UUID, bool) {
 	id, err := uuid.Parse(c.GetString(auth.ContextUserIDKey))
 	return id, err == nil
