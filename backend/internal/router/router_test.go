@@ -96,3 +96,51 @@ func TestRecommendationRoutesRequireAuthentication(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminRoutesAreRegisteredAndProtected(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const secret = "admin-router-test-secret"
+	engine := New(Dependencies{JWTSecret: secret})
+	adminToken, err := auth.NewTokenManager(secret).Issue(user.User{ID: uuid.New(), Role: "admin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	userToken, err := auth.NewTokenManager(secret).Issue(user.User{ID: uuid.New(), Role: "user"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetID := uuid.New().String()
+	tests := []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{http.MethodGet, "/api/admin/stats", ""},
+		{http.MethodGet, "/api/admin/users", ""},
+		{http.MethodGet, "/api/admin/activities", ""},
+		{http.MethodGet, "/api/admin/applications", ""},
+		{http.MethodGet, "/api/admin/feedbacks", ""},
+		{http.MethodPost, "/api/admin/users/" + targetID + "/role", `{"role":"admin"}`},
+	}
+	for _, test := range tests {
+		t.Run(test.method+" "+test.path, func(t *testing.T) {
+			assertRouteStatus(t, engine, test.method, test.path, test.body, "", http.StatusUnauthorized)
+			assertRouteStatus(t, engine, test.method, test.path, test.body, userToken, http.StatusForbidden)
+			assertRouteStatus(t, engine, test.method, test.path, test.body, adminToken, http.StatusServiceUnavailable)
+		})
+	}
+}
+
+func assertRouteStatus(t *testing.T, engine http.Handler, method, path, body, token string, want int) {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(method, path, bytes.NewBufferString(body))
+	request.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != want {
+		t.Fatalf("status=%d want=%d body=%s", recorder.Code, want, recorder.Body.String())
+	}
+}

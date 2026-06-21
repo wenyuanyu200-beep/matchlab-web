@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 
 	"matchlab/backend/internal/activity"
+	"matchlab/backend/internal/admin"
 	"matchlab/backend/internal/auth"
 	"matchlab/backend/internal/health"
 	matching "matchlab/backend/internal/match"
@@ -21,6 +22,7 @@ type Dependencies struct {
 	Activities     activity.Repository
 	Questionnaires questionnaire.Repository
 	Matches        matching.Repository
+	Admin          admin.Repository
 	JWTSecret      string
 }
 
@@ -48,11 +50,16 @@ func New(dependencies Dependencies) *gin.Engine {
 	if matches == nil {
 		matches = matching.NewGormRepository(dependencies.DB)
 	}
+	adminRepository := dependencies.Admin
+	if adminRepository == nil {
+		adminRepository = admin.NewGormRepository(dependencies.DB)
+	}
 	tokens := auth.NewTokenManager(dependencies.JWTSecret)
 	authHandler := auth.NewHandler(auth.NewService(users, tokens))
 	activityHandler := activity.NewHandler(activities)
 	questionnaireHandler := questionnaire.NewHandlerWithService(questionnaire.NewService(questionnaires))
 	matchHandler := matching.NewHandlerWithService(matching.NewService(matches))
+	adminHandler := admin.NewHandler(adminRepository)
 	authenticated := middleware.RequireAuth(tokens)
 
 	authRoutes := api.Group("/auth")
@@ -74,6 +81,14 @@ func New(dependencies Dependencies) *gin.Engine {
 	api.GET("/me/profile", authenticated, questionnaireHandler.Profile)
 	api.POST("/match/recommend", authenticated, matchHandler.Recommend)
 	api.GET("/me/matches", authenticated, matchHandler.MyMatches)
+
+	adminRoutes := api.Group("/admin", authenticated, middleware.RequireAdmin())
+	adminRoutes.GET("/stats", adminHandler.Stats)
+	adminRoutes.GET("/users", adminHandler.Users)
+	adminRoutes.GET("/activities", adminHandler.Activities)
+	adminRoutes.GET("/applications", adminHandler.Applications)
+	adminRoutes.GET("/feedbacks", adminHandler.Feedbacks)
+	adminRoutes.POST("/users/:id/role", adminHandler.UpdateUserRole)
 
 	return engine
 }

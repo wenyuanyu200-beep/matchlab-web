@@ -551,4 +551,69 @@ curl -i http://127.0.0.1:8080/api/health
 curl -i http://139.224.119.187/api/health
 ```
 
+## 管理员后台 API
+
+以下接口都需要 `admin` 角色。先在 PostgreSQL 中将测试账号设为管理员：
+
+```sql
+UPDATE users SET role = 'admin' WHERE email = 'test@example.com';
+```
+
+角色更新后需要重新登录，以便新签发的 JWT 包含 `admin` 角色：
+
+```bash
+BASE="http://139.224.119.187"
+
+TOKEN_A=$(curl -s -X POST "$BASE/api/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"test@example.com","password":"YOUR_PASSWORD"}' \
+  | jq -r '.data.token')
+```
+
+获取统计数据：
+
+```bash
+curl -s "$BASE/api/admin/stats" \
+  -H "Authorization: Bearer $TOKEN_A" | jq
+```
+
+获取用户、活动、报名和反馈列表：
+
+```bash
+curl -s "$BASE/api/admin/users?keyword=test&role=admin&limit=20&offset=0" \
+  -H "Authorization: Bearer $TOKEN_A" | jq
+
+curl -s "$BASE/api/admin/activities?keyword=电赛&type=competition&status=recruiting&limit=20&offset=0" \
+  -H "Authorization: Bearer $TOKEN_A" | jq
+
+curl -s "$BASE/api/admin/applications?status=approved&limit=20&offset=0" \
+  -H "Authorization: Bearer $TOKEN_A" | jq
+
+curl -s "$BASE/api/admin/feedbacks?limit=20&offset=0" \
+  -H "Authorization: Bearer $TOKEN_A" | jq
+```
+
+修改用户角色（`USER_ID` 替换为目标用户 UUID）：
+
+```bash
+curl -s -X POST "$BASE/api/admin/users/$USER_ID/role" \
+  -H "Authorization: Bearer $TOKEN_A" \
+  -H 'Content-Type: application/json' \
+  -d '{"role":"admin"}' | jq
+```
+
+普通用户访问管理员接口应返回 `403`：
+
+```bash
+TOKEN_B=$(curl -s -X POST "$BASE/api/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"userb@example.com","password":"YOUR_PASSWORD"}' \
+  | jq -r '.data.token')
+
+curl -i "$BASE/api/admin/stats" \
+  -H "Authorization: Bearer $TOKEN_B"
+```
+
+管理员模块复用现有表结构，本组任务无需修改或重新执行 `database/schema.sql`。
+
 最后使用本文“用户 B 完整推荐测试”中的四个接口命令验证。只要有效 JWT 请求不再返回 404，就说明新路由已经进入运行中的二进制；随后再根据 2xx、4xx 或 5xx 响应检查数据库和请求数据。
