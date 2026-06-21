@@ -89,6 +89,7 @@ func TestQuestionnaireAndMatchRoutesAreRegistered(t *testing.T) {
 		{method: http.MethodGet, path: "/api/me/profile"},
 		{method: http.MethodPost, path: "/api/match/recommend", body: `{"target_type":"activity"}`},
 		{method: http.MethodGet, path: "/api/me/matches"},
+		{method: http.MethodGet, path: "/api/matches"},
 	}
 	for _, test := range tests {
 		t.Run(test.method+" "+test.path, func(t *testing.T) {
@@ -120,6 +121,7 @@ func TestRecommendationRoutesRequireAuthentication(t *testing.T) {
 		{method: http.MethodGet, path: "/api/me/profile"},
 		{method: http.MethodPost, path: "/api/match/recommend"},
 		{method: http.MethodGet, path: "/api/me/matches"},
+		{method: http.MethodGet, path: "/api/matches"},
 	}
 	for _, test := range tests {
 		t.Run(test.method+" "+test.path, func(t *testing.T) {

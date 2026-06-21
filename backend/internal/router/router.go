@@ -91,6 +91,7 @@ func New(dependencies Dependencies) *gin.Engine {
 	api.GET("/me/profile", authenticated, questionnaireHandler.Profile)
 	api.POST("/match/recommend", authenticated, matchHandler.Recommend)
 	api.GET("/me/matches", authenticated, matchHandler.MyMatches)
+	api.GET("/matches", authenticated, matchHandler.MyMatches)
 
 	adminRoutes := api.Group("/admin", authenticated, middleware.RequireAdmin())
 	adminRoutes.GET("/stats", adminHandler.Stats)
