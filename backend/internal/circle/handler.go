@@ -33,10 +33,10 @@ func (h *Handler) Create(c *gin.Context) {
 }
 func (h *Handler) Join(c *gin.Context) { uid, _ := userID(c); id, ok := idParam(c, "id"); if !ok { return }; if err := h.service.Join(c.Request.Context(), id, uid); err != nil { handleError(c, err); return }; c.JSON(http.StatusOK, gin.H{"data": gin.H{"joined": true}}) }
 func (h *Handler) Mine(c *gin.Context) { uid, _ := userID(c); rows, err := h.service.Mine(c.Request.Context(), uid); if err != nil { handleError(c, err); return }; c.JSON(200, gin.H{"data": gin.H{"circles": rows}}) }
-func (h *Handler) Channels(c *gin.Context) { uid, _ := userID(c); cid, ok := idParam(c, "circleId"); if !ok { return }; rows, err := h.service.Channels(c.Request.Context(), cid, uid); if err != nil { handleError(c, err); return }; c.JSON(200, gin.H{"data": gin.H{"channels": rows}}) }
-func (h *Handler) Messages(c *gin.Context) { uid, _ := userID(c); cid, ok := idParam(c, "circleId"); if !ok { return }; chid, ok := idParam(c, "channelId"); if !ok { return }; rows, err := h.service.Messages(c.Request.Context(), cid, chid, uid); if err != nil { handleError(c, err); return }; c.JSON(200, gin.H{"data": gin.H{"messages": rows}}) }
+func (h *Handler) Channels(c *gin.Context) { uid, _ := userID(c); cid, ok := idParam(c, "id"); if !ok { return }; rows, err := h.service.Channels(c.Request.Context(), cid, uid); if err != nil { handleError(c, err); return }; c.JSON(200, gin.H{"data": gin.H{"channels": rows}}) }
+func (h *Handler) Messages(c *gin.Context) { uid, _ := userID(c); cid, ok := idParam(c, "id"); if !ok { return }; chid, ok := idParam(c, "channelId"); if !ok { return }; rows, err := h.service.Messages(c.Request.Context(), cid, chid, uid); if err != nil { handleError(c, err); return }; c.JSON(200, gin.H{"data": gin.H{"messages": rows}}) }
 func (h *Handler) PostMessage(c *gin.Context) {
-	uid, _ := userID(c); cid, ok := idParam(c, "circleId"); if !ok { return }; chid, ok := idParam(c, "channelId"); if !ok { return }
+	uid, _ := userID(c); cid, ok := idParam(c, "id"); if !ok { return }; chid, ok := idParam(c, "channelId"); if !ok { return }
 	var in struct{ Content string }
 	if c.ShouldBindJSON(&in) != nil { respondError(c, 400, "invalid_request", "invalid request body"); return }
 	message, err := h.service.PostMessage(c.Request.Context(), cid, chid, uid, in.Content)
@@ -62,3 +62,4 @@ func handleError(c *gin.Context, err error) {
 	}
 }
 func respondError(c *gin.Context, status int, code, message string) { c.JSON(status, gin.H{"error": code, "message": message}) }
+

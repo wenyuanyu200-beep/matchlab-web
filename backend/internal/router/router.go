@@ -112,9 +112,9 @@ func New(dependencies Dependencies) *gin.Engine {
 	api.POST("/circles", authenticated, circleHandler.Create)
 	api.POST("/circles/:id/join", authenticated, circleHandler.Join)
 	api.GET("/me/circles", authenticated, circleHandler.Mine)
-	api.GET("/circles/:circleId/channels", authenticated, circleHandler.Channels)
-	api.GET("/circles/:circleId/channels/:channelId/messages", authenticated, circleHandler.Messages)
-	api.POST("/circles/:circleId/channels/:channelId/messages", authenticated, circleHandler.PostMessage)
+	api.GET("/circles/:id/channels", authenticated, circleHandler.Channels)
+	api.GET("/circles/:id/channels/:channelId/messages", authenticated, circleHandler.Messages)
+	api.POST("/circles/:id/channels/:channelId/messages", authenticated, circleHandler.PostMessage)
 
 	api.POST("/conversations/direct", authenticated, conversationHandler.Direct)
 	api.GET("/me/conversations", authenticated, conversationHandler.List)
@@ -137,3 +137,4 @@ func New(dependencies Dependencies) *gin.Engine {
 
 	return engine
 }
+
