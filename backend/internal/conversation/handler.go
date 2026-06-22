@@ -1,6 +1,6 @@
 ﻿package conversation
 
-import("errors";"net/http";"strings";"github.com/gin-gonic/gin";"github.com/google/uuid";"matchlab/backend/internal/auth")
+import("errors";"strings";"github.com/gin-gonic/gin";"github.com/google/uuid";"matchlab/backend/internal/auth")
 type Handler struct{ service Service };func NewHandler(r Repository) *Handler { return &Handler{service: NewService(r)} }
 func current(c *gin.Context)uuid.UUID{id,_:=uuid.Parse(c.GetString(auth.ContextUserIDKey));return id};func param(c *gin.Context)(uuid.UUID,bool){id,e:=uuid.Parse(c.Param("id"));if e!=nil{reply(c,400,"invalid_id","invalid id");return uuid.Nil,false};return id,true}
 func(h *Handler)Direct(c *gin.Context){var in struct{UserID uuid.UUID `json:"user_id"`};if c.ShouldBindJSON(&in)!=nil||in.UserID==uuid.Nil{reply(c,400,"invalid_request","user_id is required");return};row,err:=h.service.Direct(c.Request.Context(),current(c),in.UserID);if err!=nil{handle(c,err);return};c.JSON(200,gin.H{"data":gin.H{"conversation":row}})}
@@ -11,3 +11,4 @@ func(h *Handler)Read(c *gin.Context){id,ok:=param(c);if !ok{return};if err:=h.se
 func(h *Handler)Unread(c *gin.Context){n,err:=h.service.Unread(c.Request.Context(),current(c));if err!=nil{handle(c,err);return};c.JSON(200,gin.H{"data":gin.H{"unread_count":n}})}
 func handle(c *gin.Context,e error){switch{case errors.Is(e,ErrUnavailable):reply(c,503,"service_unavailable","conversation service unavailable");case errors.Is(e,ErrNotFound):reply(c,404,"not_found","resource not found");case errors.Is(e,ErrForbidden):reply(c,403,"forbidden","conversation membership required");case errors.Is(e,ErrSelfChat):reply(c,400,"self_chat_forbidden","cannot start a conversation with yourself");default:reply(c,500,"internal_error","internal server error")}}
 func reply(c *gin.Context,s int,code,msg string){c.JSON(s,gin.H{"error":code,"message":msg})}
+
