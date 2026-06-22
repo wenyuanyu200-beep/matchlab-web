@@ -23,9 +23,10 @@ describe("ActivityCard", () => {
       />,
     );
     expect(screen.getByText("电赛组队")).toBeInTheDocument();
+    expect(screen.getByText("比赛组队")).toBeInTheDocument();
     expect(screen.getByText("小林 · 示例大学")).toBeInTheDocument();
     expect(screen.getByText("2 / 4 人")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "查看详情" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "查看推荐理由" })).toHaveAttribute(
       "href",
       "/activities/activity-1",
     );

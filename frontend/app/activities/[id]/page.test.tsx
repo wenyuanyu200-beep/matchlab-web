@@ -12,8 +12,9 @@ describe("ActivityDetailPage", () => {
     postJSON.mockResolvedValue({ application: { id: "ap1" } });
     render(<ActivityDetailPage />);
     expect(await screen.findByText("创客项目")).toBeInTheDocument();
+    expect(screen.getByText("项目合作")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("报名理由"), { target: { value: "我有嵌入式经验" } });
-    fireEvent.click(screen.getByRole("button", { name: "提交报名" }));
+    fireEvent.click(screen.getByRole("button", { name: "报名参与" }));
     await waitFor(() => expect(postJSON).toHaveBeenCalledWith("/activities/activity-1/apply", { reason: "我有嵌入式经验" }));
     expect(await screen.findByText("报名已提交，请等待活动发起人审核。")).toBeInTheDocument();
   });

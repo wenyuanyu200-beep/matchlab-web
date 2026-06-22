@@ -15,12 +15,27 @@ func (s StringList) Value() (driver.Value, error) { return jsonValue(s, StringLi
 func (s *StringList) Scan(value any) error        { return scanJSON(value, s) }
 
 type Answers struct {
-	Interests          StringList `json:"interests"`
-	Skills             StringList `json:"skills"`
-	AvailableTime      string     `json:"available_time"`
-	ActivityTypes      StringList `json:"activity_types"`
-	Goal               string     `json:"goal"`
-	CommunicationStyle string     `json:"communication_style"`
+	Interests              StringList `json:"interests"`
+	Hobbies                string     `json:"hobbies"`
+	ExploreFields          string     `json:"explore_fields"`
+	Skills                 StringList `json:"skills"`
+	SkillLevel             string     `json:"skill_level"`
+	Experiences            StringList `json:"experiences"`
+	MBTI                   string     `json:"mbti"`
+	CommunicationStyle     string     `json:"communication_style"`
+	TeamRole               string     `json:"team_role"`
+	WorkRhythm             string     `json:"work_rhythm"`
+	AvailableTime          string     `json:"available_time"`
+	ParticipationMode      string     `json:"participation_mode"`
+	DurationPreference     string     `json:"duration_preference"`
+	CampusOrLocation       string     `json:"campus_or_location"`
+	ActivityTypes          StringList `json:"activity_types"`
+	PreferredActivityTypes StringList `json:"preferred_activity_types"`
+	Goal                   string     `json:"goal"`
+	MainGoal               string     `json:"main_goal"`
+	PartnerExpectation     StringList `json:"partner_expectation"`
+	AvoidPoints            StringList `json:"avoid_points"`
+	ParticipationPurpose   StringList `json:"participation_purpose"`
 }
 
 func (a Answers) Value() (driver.Value, error) { return jsonValue(a, Answers{}) }
