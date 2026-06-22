@@ -1,5 +1,58 @@
 # MatchLab API 文档
 
+## 圈子与聊天 MVP
+
+除公开圈子列表和已审核圈子详情外，以下接口均使用 `Authorization: Bearer <JWT>`。成功响应沿用 `{ "data": ... }` 包装；失败响应为 `{ "error": "错误码", "message": "说明" }`。资源不存在或调用者不应知道资源存在时返回 `404`，未登录返回 `401`，已登录但权限不足返回 `403`。
+
+### 权限矩阵
+
+| 接口 | 访客 | 登录非成员 | 成员 | creator | admin |
+| --- | --- | --- | --- | --- | --- |
+| `GET /api/circles` | approved | approved，含 `joined` | approved，含 `joined` | approved，含 `joined` | approved |
+| `GET /api/circles/:id` | 仅 approved | 仅 approved | approved | 自建 pending/rejected 也可见 | 全部状态 |
+| `POST /api/circles` | 401 | 可创建 pending | 可创建 pending | 可创建 pending | 可创建 pending |
+| `POST /api/circles/:id/join` | 401 | 仅 approved | 重复加入为业务冲突 | 自身已是 owner | 可加入 approved |
+| `GET /api/me/circles` | 401 | 自己加入/创建的圈子 | 同左 | 含自建 pending/rejected | 同左 |
+| `GET /api/circles/:id/members` | approved 圈子的有限公开资料 | 同左；无私聊所需 ID | 含用户 ID | 含用户 ID | 含用户 ID |
+| `GET /api/circles/:id/channels` | 401 | 403 | 可读 | 可读 | 可读 |
+| `GET /api/circles/:id/channels/:channelId/messages` | 401 | 403 | 可读 | 可读 | 可读 |
+| `POST /api/circles/:id/channels/:channelId/messages` | 401 | 403 | 可写 | 可写 | 管理员若非成员不可写 |
+| `POST /api/conversations/direct` | 401 | 可与其他用户建会话 | 同左 | 同左 | 同左；禁止自聊 |
+| `GET /api/me/conversations`、`GET /api/me/unread-count` | 401 | 仅自己的会话/计数 | 同左 | 同左 | 同左，不可越权查看 |
+| `GET|POST /api/conversations/:id/messages`、`POST .../:id/read` | 401 | 仅会话成员 | 仅会话成员 | 仅会话成员 | 仅会话成员，admin 无旁路 |
+| `GET /api/admin/circles`、`POST .../approve|reject` | 401 | 403 | 403 | 非 admin 为 403 | 可用 |
+
+### 圈子接口
+
+- `GET /api/circles`：公开列出 approved 圈子；可使用 `keyword`、`category` 查询参数。
+- `POST /api/circles`：请求体 `{ "name", "description", "category", "tags" }`。名称 trim 后 2–40 字符，描述最多 300 字符，标签最多 8 个。创建结果为 pending，同时原子创建 owner 成员与 `general` 频道。
+- `GET /api/circles/:id`：pending/rejected 仅 creator/admin 可见，其他调用者统一得到 404。
+- `POST /api/circles/:id/join`：只能加入 approved 圈子；成员写入与 `member_count` 更新必须在同一事务。
+- `GET /api/me/circles`：返回当前用户加入的 approved 圈子，以及自己创建的 pending/rejected 圈子。
+- `GET /api/circles/:id/members`：公开访问只返回有限成员摘要；普通响应不得包含 email。
+- `GET /api/circles/:circleId/channels`：仅活跃成员或 admin 可读。
+- `GET /api/circles/:circleId/channels/:channelId/messages?after_time=<RFC3339>&after_id=<UUID>`：增量读取，按 `(created_at,id)` 稳定排序。
+- `POST /api/circles/:circleId/channels/:channelId/messages`：请求体 `{ "content": "..." }`；仅活跃成员可发送。
+
+### 私聊接口
+
+- `POST /api/conversations/direct`：请求体 `{ "user_id", "source_type", "source_id" }`，`source_type` 仅允许 `circle`、`activity`、`match`、`manual`。同一对用户复用唯一 direct conversation；目标为自己时拒绝。
+- `GET /api/me/conversations`：返回对方公开资料、最后消息、更新时间与每个会话未读数，不返回 email。
+- `GET /api/conversations/:id/messages?after_time=<RFC3339>&after_id=<UUID>`：仅会话成员可增量读取。
+- `POST /api/conversations/:id/messages`：仅会话成员可发送 `{ "content": "..." }`。
+- `POST /api/conversations/:id/read`：仅更新当前成员自己的 `last_read_at`。
+- `GET /api/me/unread-count`：返回当前用户全部 direct message 未读总数。
+
+频道和私聊消息都在服务端 trim，trim 后必须为 1–1000 个字符；客户端的 `maxLength=1000` 只用于提前反馈，不能替代服务端校验。
+
+### 管理员审核
+
+- `GET /api/admin/circles?status=pending`
+- `POST /api/admin/circles/:id/approve`
+- `POST /api/admin/circles/:id/reject`，拒绝原因随请求体提交（若实现要求）。
+
+三个接口必须同时经过现有 `RequireAuth` 与 `RequireAdmin` 中间件。审核状态转换应是稳定业务操作，不允许普通用户通过构造路径绕过。
+
 ## 通用信息
 
 - 本地基础地址：`http://127.0.0.1:8080`

@@ -1,5 +1,24 @@
 # MatchLab 前端开发与部署
 
+## 圈子与聊天页面
+
+- `/circles`：approved 圈子广场，支持关键词与分类筛选。
+- `/circles/create`：登录用户创建 pending 圈子申请。
+- `/circles/[id]`：圈子资料、成员与 `general` 频道工作区；未加入用户看到加入引导，pending/rejected 只对 creator/admin 显示审核状态。
+- `/messages`：当前用户 direct conversations 与未读数。
+- `/messages/[id]`：两人私聊详情，进入页面和收到新消息后同步已读状态。
+- `/admin`：admin 的 pending 圈子列表与通过/拒绝操作。
+
+桌面端圈子详情使用资料侧栏和频道聊天双栏布局；移动端改为“圈子信息 / 频道聊天 / 成员”三个 Tab，默认频道聊天。每个 Tab 独立滚动，页面不得产生横向溢出。消息按本人靠右、他人靠左显示；成员摘要不显示 email。
+
+### 轮询与发送
+
+频道和私聊复用 `usePollingMessages`：启用时立即加载，之后每 3000ms 携带 `after_time` 和 `after_id` 增量拉取。消息以 id 去重并按 `(created_at,id)` 排序。页面进入后台时监听 `visibilitychange` 清理计时器；恢复可见后立即拉取并重新计时，组件卸载时也必须清理。
+
+输入框 trim 后为空时不能发送，并设置 `maxLength=1000`。发送期间禁用按钮；成功后把服务端记录合并进消息流，失败时保留草稿并在聊天区域显示错误。私聊页进入以及收到新消息后调用 read 接口；导航未读 badge 低频刷新，并与本地已读操作同步。
+
+访客点击加入或发送应跳转 `/login`；登录非成员不请求完整频道消息。接口返回 401 时沿用全局 token 清理与登录跳转，403/404 则在当前工作区显示受限或不存在状态。
+
 前端位于 `frontend/`，技术栈为 Next.js 16、TypeScript、React 19 和 Tailwind CSS 4。
 
 ## 本地运行

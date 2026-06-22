@@ -109,3 +109,43 @@ export interface Feedback {
   comment?: string;
   created_at: string;
 }
+
+export type CircleStatus = "pending" | "approved" | "rejected";
+export type MembershipStatus = "none" | "pending" | "joined" | "rejected";
+
+export interface Circle {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  status: CircleStatus;
+  creator_id?: string;
+  member_count?: number;
+  membership_status?: MembershipStatus;
+  created_at?: string;
+}
+
+export interface CircleMember {
+  id?: string;
+  user_id: string;
+  nickname: string;
+  school?: string;
+  role?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  content: string;
+  sender_id: string;
+  sender?: Pick<User, "id" | "nickname" | "school">;
+  created_at: string;
+}
+
+export interface Conversation {
+  id: string;
+  title?: string;
+  peer?: Pick<User, "id" | "nickname" | "school">;
+  last_message?: ChatMessage;
+  unread_count?: number;
+  updated_at?: string;
+}

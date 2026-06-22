@@ -1,5 +1,49 @@
 # MatchLab API 部署指南
 
+## 圈子与聊天增量发布顺序
+
+圈子与聊天新增表和路由，推荐按以下顺序发布，避免新应用先于表结构上线：
+
+1. 记录发布 commit、当前应用版本并备份 PostgreSQL；验证备份可读取。
+2. 用 `ON_ERROR_STOP=1` 执行幂等 migration `database/migrations/20260622_circles_and_chat.sql`，然后再次执行验证幂等性。
+3. 检查七张新表与索引存在；migration 不得包含 `DROP` 或 `TRUNCATE`。
+4. 构建、测试并发布后端，重启 `matchlab-api`。
+5. 先检查 `/api/health`，再用无副作用 smoke 检查公开圈子列表、未认证保护和 admin 保护。
+6. 使用 `NEXT_PUBLIC_API_BASE_URL=/api` 构建并发布前端，重启 `matchlab-frontend`。
+7. 执行 `docs/qa/circles-and-chat-regression.md` 的人工回归并观察 API、PostgreSQL、Nginx 指标。
+
+示例数据库步骤：
+
+```bash
+STAMP=$(date +%Y%m%d-%H%M%S)
+sudo -u postgres pg_dump -Fc matchlab > "matchlab-$STAMP.dump"
+sudo -u postgres pg_restore --list "matchlab-$STAMP.dump" >/dev/null
+
+sudo -u postgres psql -d matchlab -v ON_ERROR_STOP=1 \
+  -f database/migrations/20260622_circles_and_chat.sql
+sudo -u postgres psql -d matchlab -v ON_ERROR_STOP=1 \
+  -f database/migrations/20260622_circles_and_chat.sql
+sudo -u postgres psql -d matchlab -c \
+  "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename IN ('circles','circle_members','circle_channels','circle_messages','conversations','conversation_members','direct_messages') ORDER BY 1;"
+```
+
+后端 smoke 建议只读执行：
+
+```bash
+curl -fsS http://127.0.0.1:8080/api/health | jq .
+curl -fsS http://127.0.0.1:8080/api/circles | jq .
+test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/me/circles)" = 401
+test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/admin/circles)" = 401
+```
+
+### 回滚
+
+回滚前端与后端应用到上一版本并重启服务；保留七张新表及其中数据，不执行逆向 DROP。旧应用不会访问新表，保留结构可避免聊天与审核数据丢失，并允许之后再次发布。若 migration 后、应用发布前出现故障，直接恢复旧应用即可。只有经过单独审批的数据恢复流程才可从发布前备份整体恢复数据库。
+
+### production E2E 安全说明
+
+`scripts/production_e2e_recommend.sh` 依赖 Bash、`curl`、`jq` 和 `date`。它会注册两个用户、提交问卷、创建活动、报名、审批并生成推荐，属于写数据测试；不要把未知 `BASE_URL` 指向生产后直接运行。当前 Windows 工作区的脚本为 CRLF，`bash -n` 会在 `require_tool() {` 处因 `\r` 失败，必须在受控改动中转换为 LF 并再次完成语法检查后才能执行。本次 QA 不执行任何远程写操作。
+
 目标环境：阿里云 Ubuntu 22.04、Go 1.22.5、Nginx、PostgreSQL，公网 IP `139.224.119.187`。
 
 ## 1. 上传项目

@@ -61,3 +61,4 @@ a { text-decoration: none; }
   .card { padding: 1rem; border-radius: 1rem; }
   .nav-link { padding: .45rem .55rem; }
 }
+.unread-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 1.2rem; height: 1.2rem; padding: 0 .32rem; border-radius: 999px; background: #ef4444; color: white; font-size: .72rem; font-weight: 800; line-height: 1; margin-left: .25rem; }

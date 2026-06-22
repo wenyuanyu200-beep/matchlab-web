@@ -172,6 +172,61 @@ func TestAdminRoutesAreRegisteredAndProtected(t *testing.T) {
 	}
 }
 
+func TestCircleAndConversationRoutesAreRegisteredAndProtected(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const secret = "social-router-test-secret"
+	engine := New(Dependencies{JWTSecret: secret})
+	token, err := auth.NewTokenManager(secret).Issue(user.User{ID: uuid.New(), Role: "user"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New().String()
+	public := []struct{ method, path string }{
+		{http.MethodGet, "/api/circles"},
+		{http.MethodGet, "/api/circles/" + id},
+		{http.MethodGet, "/api/circles/" + id + "/members"},
+	}
+	for _, route := range public {
+		assertRouteStatus(t, engine, route.method, route.path, "", "", http.StatusServiceUnavailable)
+	}
+	protected := []struct{ method, path, body string }{
+		{http.MethodPost, "/api/circles", `{"name":"Chess","description":"Play"}`},
+		{http.MethodPost, "/api/circles/" + id + "/join", ""},
+		{http.MethodGet, "/api/me/circles", ""},
+		{http.MethodGet, "/api/circles/" + id + "/channels", ""},
+		{http.MethodGet, "/api/circles/" + id + "/channels/" + id + "/messages", ""},
+		{http.MethodPost, "/api/circles/" + id + "/channels/" + id + "/messages", `{"content":"hello"}`},
+		{http.MethodPost, "/api/conversations/direct", `{"user_id":"` + id + `"}`},
+		{http.MethodGet, "/api/me/conversations", ""},
+		{http.MethodGet, "/api/conversations/" + id + "/messages", ""},
+		{http.MethodPost, "/api/conversations/" + id + "/messages", `{"content":"hello"}`},
+		{http.MethodPost, "/api/conversations/" + id + "/read", ""},
+		{http.MethodGet, "/api/me/unread-count", ""},
+	}
+	for _, route := range protected {
+		assertRouteStatus(t, engine, route.method, route.path, route.body, "", http.StatusUnauthorized)
+		assertRouteStatus(t, engine, route.method, route.path, route.body, token, http.StatusServiceUnavailable)
+	}
+}
+
+func TestAdminCircleRoutesUseAdminGroup(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const secret = "social-admin-router-test-secret"
+	engine := New(Dependencies{JWTSecret: secret})
+	adminToken, _ := auth.NewTokenManager(secret).Issue(user.User{ID: uuid.New(), Role: "admin"})
+	userToken, _ := auth.NewTokenManager(secret).Issue(user.User{ID: uuid.New(), Role: "user"})
+	id := uuid.New().String()
+	for _, route := range []struct{ method, path, body string }{
+		{http.MethodGet, "/api/admin/circles", ""},
+		{http.MethodPost, "/api/admin/circles/" + id + "/approve", ""},
+		{http.MethodPost, "/api/admin/circles/" + id + "/reject", ""},
+	} {
+		assertRouteStatus(t, engine, route.method, route.path, route.body, "", http.StatusUnauthorized)
+		assertRouteStatus(t, engine, route.method, route.path, route.body, userToken, http.StatusForbidden)
+		assertRouteStatus(t, engine, route.method, route.path, route.body, adminToken, http.StatusServiceUnavailable)
+	}
+}
+
 func assertRouteStatus(t *testing.T, engine http.Handler, method, path, body, token string, want int) {
 	t.Helper()
 	recorder := httptest.NewRecorder()

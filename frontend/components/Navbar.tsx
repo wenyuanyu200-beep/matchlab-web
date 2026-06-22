@@ -1,13 +1,22 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useSyncExternalStore } from "react";
-import { clearToken, getToken, subscribeAuth } from "@/lib/api";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { clearToken, getToken, request, subscribeAuth } from "@/lib/api";
 
 export default function Navbar() {
   const router = useRouter();
   const loggedIn = useSyncExternalStore(subscribeAuth, () => Boolean(getToken()), () => false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    const fetchUnread = () => { request<{ unread_count: number }>("/me/unread-count").then((data) => setUnreadCount(data.unread_count ?? 0)).catch(() => {}); };
+    fetchUnread();
+    const timer = setInterval(fetchUnread, 30000);
+    return () => clearInterval(timer);
+  }, [loggedIn]);
 
   function logout() {
     clearToken();
@@ -26,6 +35,8 @@ export default function Navbar() {
           <Link className="nav-link" href="/match">智能推荐</Link>
           {loggedIn ? (
             <>
+              <Link className="nav-link" href="/circles">圈子</Link>
+              <Link className="nav-link" href="/messages">消息{unreadCount > 0 ? <span className="unread-badge">{unreadCount}</span> : null}</Link>
               <Link className="nav-link" href="/dashboard">工作台</Link>
               <button className="nav-link cursor-pointer" onClick={logout}>退出</button>
             </>
@@ -37,3 +48,5 @@ export default function Navbar() {
     </header>
   );
 }
+
+
